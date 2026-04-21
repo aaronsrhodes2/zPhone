@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,7 +25,9 @@ class CompassModule(private val device: DeviceLayer) : FeatureModule {
 
     @Composable
     override fun Overlay() {
-        val heading by mutableStateOf(device.headingDegrees)
+        // Read directly from DeviceLayer — headingDegrees is backed by mutableDoubleStateOf
+        // so Compose will recompose automatically when the sensor updates it.
+        val heading = device.headingDegrees
         Column(
             horizontalAlignment = Alignment.End,
             modifier = Modifier.padding(top = 30.dp, end = 12.dp)
