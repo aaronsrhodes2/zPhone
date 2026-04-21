@@ -37,6 +37,7 @@ import com.skippy.droid.layers.CameraPassthrough
 import com.skippy.droid.layers.ContextEngine
 import com.skippy.droid.layers.DeviceLayer
 import com.skippy.droid.layers.FeatureModule
+import com.skippy.droid.layers.GlassesLayer
 import com.skippy.droid.layers.PassthroughCamera
 import com.skippy.droid.layers.TransportLayer
 import kotlinx.coroutines.launch
@@ -56,6 +57,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var modules: List<FeatureModule>
 
     private lateinit var contextEngine: ContextEngine
+    private lateinit var glassesLayer: GlassesLayer
     lateinit var navEngine: NavigationEngine   // exposed for voice module (future)
 
     private lateinit var displayManager: DisplayManager
@@ -79,6 +81,7 @@ class MainActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         device        = DeviceLayer(this)
+        glassesLayer  = GlassesLayer().also { device.glasses = it }   // preferred heading source
         transport     = TransportLayer(pcUrl)
         passthrough   = PassthroughCamera(this)
         contextEngine = ContextEngine(device)
@@ -227,6 +230,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         device.start()
+        glassesLayer.start()
         transport.start()
         contextEngine.start()
 
@@ -240,6 +244,7 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         device.stop()
+        glassesLayer.stop()
         transport.stop()
         contextEngine.stop()
     }

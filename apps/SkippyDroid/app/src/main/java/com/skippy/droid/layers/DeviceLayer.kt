@@ -21,8 +21,26 @@ class DeviceLayer(context: Context) {
     var location: Location? by mutableStateOf(null)
     var speedMps: Float by mutableFloatStateOf(0f)
 
-    // IMU — compass heading in degrees [0, 360)
-    var headingDegrees: Double by mutableDoubleStateOf(0.0)
+    // Glasses IMU — preferred heading source when VITURE is connected.
+    // Wired by MainActivity once GlassesLayer has the VITURE SDK integrated.
+    var glasses: GlassesLayer? = null
+
+    // Phone IMU — fallback compass heading in degrees [0, 360)
+    private var phoneHeadingDegrees: Double by mutableDoubleStateOf(0.0)
+
+    /**
+     * Best available heading in degrees [0, 360).
+     *
+     * Priority:
+     *   1. VITURE glasses IMU  — head-mounted, tracks where you're looking
+     *   2. Phone magnetometer  — fallback when glasses not connected / SDK not wired
+     *
+     * NavigationModule reads this for direction-dot bearing.  When the VITURE SDK
+     * is integrated, plugging in the glasses will automatically upgrade the heading
+     * source without changing any navigation code.
+     */
+    val headingDegrees: Double
+        get() = glasses?.headingDegrees ?: phoneHeadingDegrees
 
     private val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -45,7 +63,7 @@ class DeviceLayer(context: Context) {
                     if (SensorManager.getRotationMatrix(r, i, gravity, geomagnetic)) {
                         val orientation = FloatArray(3)
                         SensorManager.getOrientation(r, orientation)
-                        headingDegrees = ((Math.toDegrees(orientation[0].toDouble()) + 360) % 360)
+                        phoneHeadingDegrees = ((Math.toDegrees(orientation[0].toDouble()) + 360) % 360)
                     }
                 }
             }
