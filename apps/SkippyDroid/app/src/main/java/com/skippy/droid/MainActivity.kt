@@ -2,6 +2,7 @@ package com.skippy.droid
 
 import android.hardware.display.DisplayManager
 import android.os.Bundle
+import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -87,7 +88,7 @@ class MainActivity : ComponentActivity() {
             BatteryModule(this, transport),
             CoordinatesModule(device),
             SpeedModule(device),
-            NavigationModule(navEngine)
+            NavigationModule(navEngine, device)
         )
 
         // Ask for CAMERA now. If already granted, PassthroughCamera opens as soon as
@@ -108,10 +109,10 @@ class MainActivity : ComponentActivity() {
         }
 
         // Watch for VITURE glasses connecting / disconnecting via USB-C DP Alt Mode.
+        // Initial scan is deferred to onStart() — Presentation.show() requires
+        // the activity window to be attached, which isn't guaranteed in onCreate().
         displayManager = getSystemService(DisplayManager::class.java)
         displayManager.registerDisplayListener(displayListener, null)
-        displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
-            .firstOrNull()?.let { showGlasses(it) }
 
         setContent {
             // Phone screen: camera passthrough background + HUD overlays.
@@ -209,9 +210,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showGlasses(display: android.view.Display) {
+        Log.d("Skippy", "showGlasses: displayId=${display.displayId} name=${display.name}")
         glassesPresentation?.dismiss()
         glassesPresentation = GlassesPresentation(this, display, modules, passthrough, contextEngine)
             .also { it.show() }
+        Log.d("Skippy", "showGlasses: presentation shown")
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -221,6 +224,12 @@ class MainActivity : ComponentActivity() {
         device.start()
         transport.start()
         contextEngine.start()
+
+        // Scan for presentation displays here (not onCreate) so Presentation.show()
+        // has a live window to render into.
+        val presDisplays = displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
+        Log.d("Skippy", "onStart: found ${presDisplays.size} presentation display(s)")
+        presDisplays.firstOrNull()?.let { showGlasses(it) }
     }
 
     override fun onStop() {
