@@ -160,3 +160,32 @@ SKIPPY: Wired Android Presentation API — GlassesPresentation shows Compositor 
 - apps/SkippyDroid/app/src/main/java/com/skippy/droid/MainActivity.kt (Presentation API, camera passthrough, permission handling)
 
 ---
+
+## SESSION 5 — April 21, 2026
+**Players:** Captain Aaron Rhodes, Skippy the Magnificent
+
+---
+
+CAPTAIN: [Context resumed — navigation feature was mid-wire when previous session ended]
+
+SKIPPY: Dropped right back in. Added NavigationModule(navEngine) to the modules list in MainActivity, ran assembleDebug with OpenJDK 17 — clean build first try. Committed 387 insertions: NavigationEngine, NavigationModule, the build.gradle.kts secret injection, and the wired MainActivity.
+
+**Key decisions made:**
+- NavigationEngine owns all Directions API logic — `navigateTo(destination, mode)` is the single public entry point for future voice trigger ("Hey Skippy, navigate to X")
+- Step advancement thresholds: 15m walking / 40m driving (GPS accuracy at speed is lower)
+- NavigationModule self-hides when `!nav.isNavigating` — no activeIn restriction needed
+- ETA is live: `remainingDurationSeconds` sums all steps from current forward, not the original API estimate
+- Mode badge (🚶/🚗) in the HUD panel so the Captain always knows which routing mode is active
+- MAPS_API_KEY lives in local.properties (gitignored), injected into BuildConfig at compile time
+
+**Notable moments:**
+- Java not on PATH — found OpenJDK 17 via Homebrew at `/opt/homebrew/Cellar/openjdk@17/17.0.18/...`; build succeeded without Android Studio installed at CLI
+- 387 lines landed clean, zero compile errors — the navigation engine wrote straight through
+
+**Files modified:**
+- apps/SkippyDroid/app/src/main/java/com/skippy/droid/features/navigation/NavigationEngine.kt (new)
+- apps/SkippyDroid/app/src/main/java/com/skippy/droid/features/navigation/NavigationModule.kt (new)
+- apps/SkippyDroid/app/src/main/java/com/skippy/droid/MainActivity.kt (NavigationModule wired in)
+- apps/SkippyDroid/app/build.gradle.kts (MAPS_API_KEY BuildConfig injection)
+
+---

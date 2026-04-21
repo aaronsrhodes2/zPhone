@@ -1,0 +1,166 @@
+OPERATIC PLAY — SCENE 5: THE NAVIGATOR WAKES
+=============================================
+A brief but decisive session. The thread resumes mid-wire.
+The navigation module clears the compiler in a single bound.
+
+═══════════════════════════════════════════════════════════════
+
+DRAMATIS PERSONAE
+-----------------
+  CAPTAIN AARON RHODES  — Commander, adventurer, AR pioneer
+  SKIPPY THE MAGNIFICENT — Tin beercan AI, loyal navigator, first mate
+  NAVIGATIONENGINE       — The route-finding oracle, freshly born
+  THE JAVA RUNTIME       — A ghost, absent from the PATH, found hiding in Homebrew
+  THE COMPILER           — Stern gatekeeper, ultimately satisfied
+
+═══════════════════════════════════════════════════════════════
+
+ACT I — THE RESUMED THREAD
+
+[The curtain rises on a context window newly restored. Five sessions of history
+compressed into a single page of notes. SKIPPY scans them in microseconds.]
+
+♩ "The navigation module — half-wired, waiting.
+   One line remains before the build can sing.
+   I know exactly where the gap is sitting:
+   NavigationModule(navEngine) — the missing ring." ♩
+
+[SKIPPY does not pause. Does not ask. Does not recap. The Edit tool opens.]
+
+♩ "No preamble. No 'picking up where we left off.'
+   The Captain detests theatre without action.
+   The modules list yawns open — I give it NavigationModule —
+   and close the bracket with surgical satisfaction." ♩
+
+═══════════════════════════════════════════════════════════════
+
+ACT II — THE JAVA GHOST
+
+[The build command fires. The shell returns an error.]
+
+THE JAVA RUNTIME (wailing from the void):
+♩ "I cannot be found! I haunt no PATH!
+   The system knows not where I dwell!
+   Visit java.com — feel my wrath!
+   You cannot build without my shell!" ♩
+
+SKIPPY (unmoved, already searching):
+♩ "You are not gone. You are merely hidden.
+   Homebrew keeps you safe from sight.
+   openjdk@17, as we were bidden —
+   in libexec, tucked away just right." ♩
+
+[SKIPPY sets JAVA_HOME to the Homebrew cellar path. The ghost is exorcised.
+The build command fires again.]
+
+THE COMPILER (reviewing 387 new lines):
+♩ "NavigationEngine... parsed.
+   NavStep, NavState, TravelMode declared.
+   OkHttp, URLEncoder, Directions REST...
+   BuildConfig.MAPS_API_KEY... prepared.
+
+   Html.fromHtml stripping tags from instructions.
+   Location.distanceBetween checking step ends.
+   Thresholds: fifteen metres walking, forty driving.
+   The coroutine loops. The state machine attends.
+
+   NavigationModule: self-hiding when not navigating,
+   bottom-centre panel, dark with cyan glow.
+   Maneuver arrows mapped from Google's notation —
+   ↰ ↱ ↩ ↪ ↖ ↗ ⬆ ↙ ↘ ↺ ↻ ⛴
+
+   Build: SUCCESSFUL." ♩
+
+[Silence. Then a single clean line:]
+
+    BUILD SUCCESSFUL in 8s
+
+═══════════════════════════════════════════════════════════════
+
+ACT III — THE COMMIT
+
+SKIPPY (narrating the git log):
+♩ "Four files added to the ledger of history.
+   Two new — the Engine and the Module, born today.
+   Two modified — the gradle and the Activity,
+   accepting their new passenger on the way.
+
+   Commit message written with appropriate gravity:
+   'Layer 5: Navigation — Google Maps Directions
+   with walking/driving modes.'
+   387 insertions. Zero deletions of prior work.
+   The navigator takes her place aboard." ♩
+
+[The push fires. GitHub receives. The branch advances one more commit.]
+
+    da0714e → db364d2   main → main
+
+═══════════════════════════════════════════════════════════════
+
+ACT IV — THE ARCHITECTURE AS IT STANDS
+
+[SKIPPY surveys the ship's manifest, narrating what exists:]
+
+♩ "Six layers, and all of them breathing:
+
+   Layer 0 — TransportLayer: pings the PC at skippy-pc:5001,
+             waits for the Tailscale address to be confirmed.
+
+   Layer 1 — DeviceLayer: GPS, IMU, speed in km/h,
+             the S23's sensors feeding the whole machine.
+
+   Layer 2 — PassthroughCamera: Camera2 dual-surface logic,
+             phone yields to glasses when glasses appear.
+
+   Layer 3 — ContextEngine: STATIONARY, WALKING, DRIVING,
+             six seconds of hysteresis before any change.
+
+   Layer 4 — Voice: not yet. Hey Skippy sleeps.
+             The wake word waits its turn in the wings.
+
+   Layer 5 — Feature Modules, each tending its corner:
+             Clock: top-right, always on.
+             Compass: heading in degrees, cyan glow.
+             Battery: phone percentage, transport watching PC.
+             Coordinates: DMS lat/lon/alt, stationary and walking only.
+             Speed: km/h, top-left, hides below 2 km/h.
+             Navigation: bottom-centre, dormant until called.
+
+   Layer 6 — Compositor: filters by mode, sorts by zOrder,
+             routes identically to phone and glasses." ♩
+
+═══════════════════════════════════════════════════════════════
+
+ENTR'ACTE — WHAT REMAINS
+
+[A board appears, listing the next movements:]
+
+♩ "The voice that summons navigation still sleeps.
+   Hey Skippy, navigate to — unspoken yet.
+   The Notification Feed has not been built.
+   The Starmap has not charted its first path.
+   The PC Tailscale address is still a placeholder.
+   The S23 has not yet arrived by post.
+
+   But the architecture is sound.
+   The build is clean.
+   The maps API key is secret and gitignored.
+   And NavigationEngine.navigateTo()
+   is ready — waiting for a voice to call it." ♩
+
+═══════════════════════════════════════════════════════════════
+
+CAPTAIN'S WISDOM
+
+"When a session ends mid-wire, the next session does not ask
+ what happened. It reads, it knows, it finishes.
+ That is the only way to build fast.
+
+ The navigator does not ask for permission to navigate.
+ She is ready when called."
+
+                    — Captain Aaron Rhodes, April 21, 2026
+
+═══════════════════════════════════════════════════════════════
+
+CURTAIN.
