@@ -1,0 +1,305 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1CEDA70B9A5B736F36F7E75B /* GlassesHUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AA93BF2D7EAE26837FFE850 /* GlassesHUDView.swift */; };
+		6224928D75576772742FD038 /* SkippyGlassesMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFBC067B5FB18A73A8FD528A /* SkippyGlassesMacApp.swift */; };
+		6BF0D29629147D863372AF1B /* GlassesWindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD7D688C7FF9A317B92189EE /* GlassesWindowManager.swift */; };
+		E226D2FCCADAD3684D67C898 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C708ADDC1F29C6607A3A7399 /* AppDelegate.swift */; };
+		FA0A7A8199544EE57C9F2230 /* HUDViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF998CDE0B5F03B6CA978A64 /* HUDViewModel.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		338F50E14989684EEFA7B2F1 /* SkippyGlassesMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SkippyGlassesMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4841BE1BAF71501B4CB7B135 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		6AA93BF2D7EAE26837FFE850 /* GlassesHUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesHUDView.swift; sourceTree = "<group>"; };
+		AF998CDE0B5F03B6CA978A64 /* HUDViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDViewModel.swift; sourceTree = "<group>"; };
+		BFBC067B5FB18A73A8FD528A /* SkippyGlassesMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkippyGlassesMacApp.swift; sourceTree = "<group>"; };
+		C708ADDC1F29C6607A3A7399 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		FD7D688C7FF9A317B92189EE /* GlassesWindowManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesWindowManager.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		1D6E4689B927CBD9EEA0C26B /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				338F50E14989684EEFA7B2F1 /* SkippyGlassesMac.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		379816D3DA517AB94FD51C97 = {
+			isa = PBXGroup;
+			children = (
+				9F5DDA7B1EAE271539613457 /* Sources */,
+				1D6E4689B927CBD9EEA0C26B /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		9F5DDA7B1EAE271539613457 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				C708ADDC1F29C6607A3A7399 /* AppDelegate.swift */,
+				6AA93BF2D7EAE26837FFE850 /* GlassesHUDView.swift */,
+				FD7D688C7FF9A317B92189EE /* GlassesWindowManager.swift */,
+				AF998CDE0B5F03B6CA978A64 /* HUDViewModel.swift */,
+				4841BE1BAF71501B4CB7B135 /* Info.plist */,
+				BFBC067B5FB18A73A8FD528A /* SkippyGlassesMacApp.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		8CD7A4F71C0556C3D938C364 /* SkippyGlassesMac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0ED22DCFB21BA55A847E66A6 /* Build configuration list for PBXNativeTarget "SkippyGlassesMac" */;
+			buildPhases = (
+				61B924F3ED3FD6C37B65596A /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SkippyGlassesMac;
+			packageProductDependencies = (
+			);
+			productName = SkippyGlassesMac;
+			productReference = 338F50E14989684EEFA7B2F1 /* SkippyGlassesMac.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		95E18B67B016EF3A8F0646EA /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					8CD7A4F71C0556C3D938C364 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = DD1A20CE0CC430106AFB5C49 /* Build configuration list for PBXProject "SkippyGlassesMac" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 379816D3DA517AB94FD51C97;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 1D6E4689B927CBD9EEA0C26B /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				8CD7A4F71C0556C3D938C364 /* SkippyGlassesMac */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		61B924F3ED3FD6C37B65596A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E226D2FCCADAD3684D67C898 /* AppDelegate.swift in Sources */,
+				1CEDA70B9A5B736F36F7E75B /* GlassesHUDView.swift in Sources */,
+				6BF0D29629147D863372AF1B /* GlassesWindowManager.swift in Sources */,
+				FA0A7A8199544EE57C9F2230 /* HUDViewModel.swift in Sources */,
+				6224928D75576772742FD038 /* SkippyGlassesMacApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		34643F06612B7583E466B2B9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_FILE = Sources/Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.10;
+			};
+			name = Debug;
+		};
+		BE696D9CBDDDF8336EB95977 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = Sources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.skippy.SkippyGlassesMac;
+				PRODUCT_NAME = SkippyGlassesMac;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		EE4A85DE61C270BCDE9EC692 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_FILE = Sources/Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.10;
+			};
+			name = Release;
+		};
+		F3A5BCA13145FA43FDD0943E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = Sources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.skippy.SkippyGlassesMac;
+				PRODUCT_NAME = SkippyGlassesMac;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0ED22DCFB21BA55A847E66A6 /* Build configuration list for PBXNativeTarget "SkippyGlassesMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F3A5BCA13145FA43FDD0943E /* Debug */,
+				BE696D9CBDDDF8336EB95977 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		DD1A20CE0CC430106AFB5C49 /* Build configuration list for PBXProject "SkippyGlassesMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				34643F06612B7583E466B2B9 /* Debug */,
+				EE4A85DE61C270BCDE9EC692 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 95E18B67B016EF3A8F0646EA /* Project object */;
+}

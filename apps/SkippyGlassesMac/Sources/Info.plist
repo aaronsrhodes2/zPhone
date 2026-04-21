@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>SkippyGlassesMac</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.skippy.SkippyGlassesMac</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <!-- Hide from Dock — runs as a menu bar utility -->
+    <key>LSUIElement</key>
+    <true/>
+    <!-- CoreLocation usage descriptions (macOS) -->
+    <key>NSLocationUsageDescription</key>
+    <string>SkippyGlassesMac uses your location to show compass heading and GPS coordinates on the HUD.</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>SkippyGlassesMac uses your location to show compass heading and GPS coordinates on the HUD.</string>
+</dict>
+</plist>
