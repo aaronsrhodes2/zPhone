@@ -44,6 +44,23 @@ class NavigationModule(private val nav: NavigationEngine) : FeatureModule {
 
     @Composable
     override fun Overlay() {
+        // Error banner — shown whenever the last navigateTo failed (no GPS, bad route, etc.)
+        nav.error?.let { err ->
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+                Text(
+                    text = "⚠ $err",
+                    color = Color(0xFFFF4444),
+                    fontSize = 13.sp,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier
+                        .padding(bottom = 24.dp)
+                        .background(Color.Black.copy(alpha = 0.80f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 14.dp, vertical = 7.dp)
+                )
+            }
+            return
+        }
+
         if (!nav.isNavigating) return
         val state = nav.state ?: return
         val step  = state.currentStep ?: return

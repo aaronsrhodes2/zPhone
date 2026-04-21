@@ -54,15 +54,27 @@ class DeviceLayer(context: Context) {
     }
 
     fun start() {
-        try {
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 1f, locationListener)
-        } catch (_: SecurityException) {}
-
+        startLocationUpdates()
         sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY)?.let {
             sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_UI)
         }
         sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)?.let {
             sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_UI)
+        }
+    }
+
+    /** Call after ACCESS_FINE_LOCATION is granted to begin receiving fixes immediately. */
+    fun onLocationPermissionGranted() = startLocationUpdates()
+
+    private fun startLocationUpdates() {
+        // Try GPS first, then network as fallback (network works in emulator without a GPS fix).
+        for (provider in listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)) {
+            try {
+                if (locationManager.isProviderEnabled(provider)) {
+                    locationManager.requestLocationUpdates(provider, 1_000L, 1f, locationListener)
+                }
+            } catch (_: SecurityException) {
+            } catch (_: IllegalArgumentException) {}
         }
     }
 

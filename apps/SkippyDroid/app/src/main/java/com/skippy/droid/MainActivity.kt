@@ -6,10 +6,21 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.skippy.droid.BuildConfig
 import com.skippy.droid.compositor.Compositor
 import com.skippy.droid.compositor.GlassesPresentation
 import com.skippy.droid.features.battery.BatteryModule
@@ -25,6 +36,7 @@ import com.skippy.droid.layers.DeviceLayer
 import com.skippy.droid.layers.FeatureModule
 import com.skippy.droid.layers.PassthroughCamera
 import com.skippy.droid.layers.TransportLayer
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -46,12 +58,17 @@ class MainActivity : ComponentActivity() {
     private lateinit var displayManager: DisplayManager
     private var glassesPresentation: GlassesPresentation? = null
 
-    // Modern permission API — callback fires after user responds to the system dialog.
-    // passthrough is guaranteed to be initialized before the callback can fire (it's
-    // set in onCreate, which must complete before the user can respond to a dialog).
+    // Modern permission API — callbacks fire after user responds to the system dialog.
+    // Both passthrough and device are guaranteed initialized before any callback fires.
+
     private val requestCameraPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) passthrough.onPermissionGranted()
+        }
+
+    private val requestLocationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) device.onLocationPermissionGranted()
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -82,6 +99,14 @@ class MainActivity : ComponentActivity() {
             requestCameraPermission.launch(android.Manifest.permission.CAMERA)
         }
 
+        // Ask for LOCATION. DeviceLayer.start() catches SecurityException silently; if permission
+        // is granted after the fact the callback re-registers location updates immediately.
+        if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            requestLocationPermission.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+
         // Watch for VITURE glasses connecting / disconnecting via USB-C DP Alt Mode.
         displayManager = getSystemService(DisplayManager::class.java)
         displayManager.registerDisplayListener(displayListener, null)
@@ -95,6 +120,8 @@ class MainActivity : ComponentActivity() {
             // camera session for the glasses display and the phone's TextureView goes dark.
             // When glasses are removed, PassthroughCamera.detachGlasses() hands the camera
             // back to the phone's surface automatically.
+            val scope = rememberCoroutineScope()
+
             Box(modifier = Modifier.fillMaxSize()) {
 
                 // Layer 2: camera fills the frame
@@ -110,6 +137,44 @@ class MainActivity : ComponentActivity() {
                     contentAlignment = Alignment.TopEnd
                 ) {
                     Compositor(modules, contextEngine)
+                }
+
+                // ── Debug NAV button (DEBUG builds only) ─────────────────────────────
+                // Tap to start a test walking route; tap again to cancel.
+                // Remove or gate behind a feature flag before any public release.
+                if (BuildConfig.DEBUG) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(start = 10.dp, bottom = 10.dp),
+                        contentAlignment = Alignment.BottomStart
+                    ) {
+                        val isNav = navEngine.isNavigating
+                        Text(
+                            text = if (isNav) "■ STOP NAV" else "▶ TEST NAV",
+                            color = Color.Yellow,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier
+                                .background(
+                                    Color.Black.copy(alpha = 0.60f),
+                                    RoundedCornerShape(4.dp)
+                                )
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                                .clickable {
+                                    if (isNav) {
+                                        navEngine.cancel()
+                                    } else {
+                                        scope.launch {
+                                            navEngine.navigateTo(
+                                                destination = "Johnny's Market Boulder Creek CA",
+                                                mode = NavigationEngine.TravelMode.WALKING
+                                            )
+                                        }
+                                    }
+                                }
+                        )
+                    }
                 }
             }
         }
