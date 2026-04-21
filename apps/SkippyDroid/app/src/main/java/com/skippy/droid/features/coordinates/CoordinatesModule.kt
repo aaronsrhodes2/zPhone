@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.skippy.droid.layers.ContextEngine
 import com.skippy.droid.layers.DeviceLayer
 import com.skippy.droid.layers.FeatureModule
 
@@ -28,6 +29,9 @@ class CoordinatesModule(private val device: DeviceLayer) : FeatureModule {
     override val requiresGps = true
     override var enabled by mutableStateOf(true)
     override val zOrder = 8
+    // Coordinates are useful when stationary (finding a place) or walking.
+    // At driving speed they change too fast and clutter the field of view.
+    override val activeIn = setOf(ContextEngine.Mode.STATIONARY, ContextEngine.Mode.WALKING)
 
     @Composable
     override fun Overlay() {

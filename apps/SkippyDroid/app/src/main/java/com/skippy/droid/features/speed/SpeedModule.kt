@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.skippy.droid.layers.ContextEngine
 import com.skippy.droid.layers.DeviceLayer
 import com.skippy.droid.layers.FeatureModule
 
@@ -29,6 +30,8 @@ class SpeedModule(private val device: DeviceLayer) : FeatureModule {
     override val requiresGps = true
     override var enabled by mutableStateOf(true)
     override val zOrder = 9
+    // Speed is only meaningful when actually moving
+    override val activeIn = setOf(ContextEngine.Mode.WALKING, ContextEngine.Mode.DRIVING)
 
     companion object {
         const val MIN_DISPLAY_KMH = 2.0f          // below this = stationary, hide

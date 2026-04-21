@@ -18,6 +18,7 @@ import com.skippy.droid.features.compass.CompassModule
 import com.skippy.droid.features.coordinates.CoordinatesModule
 import com.skippy.droid.features.speed.SpeedModule
 import com.skippy.droid.layers.CameraPassthrough
+import com.skippy.droid.layers.ContextEngine
 import com.skippy.droid.layers.DeviceLayer
 import com.skippy.droid.layers.FeatureModule
 import com.skippy.droid.layers.PassthroughCamera
@@ -37,6 +38,8 @@ class MainActivity : ComponentActivity() {
     // share the same state objects (all backed by mutableStateOf / mutableDoubleStateOf).
     private lateinit var modules: List<FeatureModule>
 
+    private lateinit var contextEngine: ContextEngine
+
     private lateinit var displayManager: DisplayManager
     private var glassesPresentation: GlassesPresentation? = null
 
@@ -52,9 +55,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        device    = DeviceLayer(this)
-        transport = TransportLayer(pcUrl)
+        device      = DeviceLayer(this)
+        transport   = TransportLayer(pcUrl)
         passthrough = PassthroughCamera(this)
+        contextEngine = ContextEngine(device)
 
         modules = listOf(
             ClockModule(),
@@ -100,7 +104,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.TopEnd
                 ) {
-                    Compositor(modules)
+                    Compositor(modules, contextEngine)
                 }
             }
         }
@@ -136,7 +140,7 @@ class MainActivity : ComponentActivity() {
 
     private fun showGlasses(display: android.view.Display) {
         glassesPresentation?.dismiss()
-        glassesPresentation = GlassesPresentation(this, display, modules, passthrough)
+        glassesPresentation = GlassesPresentation(this, display, modules, passthrough, contextEngine)
             .also { it.show() }
     }
 
@@ -146,12 +150,14 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         device.start()
         transport.start()
+        contextEngine.start()
     }
 
     override fun onStop() {
         super.onStop()
         device.stop()
         transport.stop()
+        contextEngine.stop()
     }
 
     override fun onDestroy() {

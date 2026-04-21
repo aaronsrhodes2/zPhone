@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.skippy.droid.layers.CameraPassthrough
+import com.skippy.droid.layers.ContextEngine
 import com.skippy.droid.layers.FeatureModule
 import com.skippy.droid.layers.PassthroughCamera
 
@@ -37,7 +38,8 @@ class GlassesPresentation(
     private val activity: ComponentActivity,
     display: Display,
     private val modules: List<FeatureModule>,
-    private val passthrough: PassthroughCamera
+    private val passthrough: PassthroughCamera,
+    private val contextEngine: ContextEngine
 ) : Presentation(activity, display) {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,7 +69,7 @@ class GlassesPresentation(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.TopEnd
                     ) {
-                        Compositor(modules)
+                        Compositor(modules, contextEngine)
                     }
                 }
             }

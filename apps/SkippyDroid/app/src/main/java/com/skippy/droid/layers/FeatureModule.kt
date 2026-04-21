@@ -16,6 +16,13 @@ interface FeatureModule {
     /** Z-order in the compositor — higher floats on top. */
     val zOrder: Int get() = 0
 
+    /**
+     * Context modes in which this module is active.
+     * Empty set (default) = active in ALL modes.
+     * Set specific modes for modules that only make sense while walking or driving.
+     */
+    val activeIn: Set<ContextEngine.Mode> get() = emptySet()
+
     /** Called once when the module is enabled. */
     fun onEnable() {}
 
