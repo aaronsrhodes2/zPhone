@@ -161,12 +161,17 @@ class NavigationModule(
         val state = nav.state ?: return
         val step  = state.currentStep ?: return
 
-        val loc     = device.location
-        val heading = device.headingDegrees
-        if (loc != null) {
-            val relBearing = relativeBearing(loc, step.endLat, step.endLng, heading)
-            DirectionDots(relBearing)
+        // Use glasses IMU heading when available (VITURE SDK integrated).
+        // Without it, default to 0° = straight ahead — better than pointing
+        // sideways based on an uncalibrated phone compass the user isn't facing.
+        val relBearing: Float = if (device.glasses?.isConnected == true) {
+            val loc = device.location ?: return
+            relativeBearing(loc, step.endLat, step.endLng, device.headingDegrees)
+        } else {
+            0f  // straight ahead until VITURE IMU is live
         }
+
+        DirectionDots(relBearing)
     }
 
     // ── Direction dots ────────────────────────────────────────────────────────
@@ -181,26 +186,27 @@ class NavigationModule(
      */
     @Composable
     private fun DirectionDots(relativeBearingDeg: Float) {
-        val density   = LocalDensity.current
-        val dotColor  = Color(0xFF00AAFF)   // sky blue — distinct from the cyan HUD text
-        val dotCount  = 8
+        val density  = LocalDensity.current
+        val dotColor = Color(0xFF00AAFF)   // sky blue — distinct from the cyan HUD text
+        val dotCount = 7
 
         Canvas(modifier = Modifier.fillMaxSize()) {
             val rad = Math.toRadians(relativeBearingDeg.toDouble())
             val dx  = sin(rad).toFloat()
             val dy  = -cos(rad).toFloat()   // negative: y increases downward in screen space
 
-            // Origin at bottom-centre of the composable (the Captain's feet)
+            // Origin at bottom-centre (Captain's feet)
             val originX = size.width / 2f
             val originY = size.height
 
+            // Linear spacing with gentle perspective taper.
+            // Sized for a real glasses display (~1280×720); clearly legible at arm's length.
             for (i in 0 until dotCount) {
-                val t = i / (dotCount - 1).toFloat()   // 0 = closest, 1 = furthest
+                val t = i / (dotCount - 1).toFloat()   // 0 = closest dot, 1 = furthest
 
-                // Dots start close and spread out with increasing gap (perspective spacing)
-                val distPx   = with(density) { (50 + i * i * 14).dp.toPx() }
-                val radiusPx = with(density) { lerp(24f, 5f, t).dp.toPx() }
-                val alpha    = lerp(0.92f, 0.18f, t)
+                val distPx   = with(density) { lerp(60f, 480f, t).dp.toPx() }
+                val radiusPx = with(density) { lerp(28f, 8f, t).dp.toPx() }
+                val alpha    = lerp(0.95f, 0.25f, t)
 
                 drawCircle(
                     color  = dotColor.copy(alpha = alpha),
