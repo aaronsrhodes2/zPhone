@@ -1,0 +1,15 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+.venv/
+.DS_Store
+
+# Android — build outputs and local machine config
+apps/SkippyDroid/local.properties
+apps/SkippyDroid/app/build/
+apps/SkippyDroid/.gradle/
+apps/SkippyDroid/build/

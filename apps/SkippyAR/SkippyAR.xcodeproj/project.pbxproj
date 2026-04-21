@@ -1,0 +1,383 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0CA505F136C66506F8123637 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A57A8D18EBBD2A1097EE836 /* ContentView.swift */; };
+		232AEBF30BF6C4C459E2A76C /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A32349CF31F34E7D723BE740 /* AppDelegate.swift */; };
+		72A2B88D1A135772A0546915 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 68291F47B0C594D6DC5236E9 /* Assets.xcassets */; };
+		7DAC474054DC9DF193B1AFA3 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90AAAD07799ADF2E853FAE5 /* SceneDelegate.swift */; };
+		87FB67D90A511F05FAB5020C /* SubtitleOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814219BADBD955D5FC12020E /* SubtitleOverlayView.swift */; };
+		A4943889AC1D17286DFEB1E0 /* HUDOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DFBF85E45A2CE8F47C1FDC7 /* HUDOverlayView.swift */; };
+		A9DCD3D541F55452C56763EB /* GlassesDisplayManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAE1E3F413D115E664E5DFFB /* GlassesDisplayManager.swift */; };
+		B20F8E1E67ED55E9BCC0FF8B /* GlassesRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 904CE054EC31438F1C88A43B /* GlassesRootView.swift */; };
+		C6BCFD80C29BE8706CDB4361 /* TranslationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FAC050F667F35341D034B39 /* TranslationEngine.swift */; };
+		D2B004CEAE8BAB81061D0F18 /* GlassesNotConnectedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB6A1A71382AADC541ADAAC /* GlassesNotConnectedView.swift */; };
+		DA79F6AC2310E9ECA48AB834 /* HUDViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D05771F01DEEB677AD33FE7 /* HUDViewModel.swift */; };
+		F9E3911415F1F9B7A0003439 /* SkippyARApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE3BD9884CF6104AC3936457 /* SkippyARApp.swift */; };
+		FFAA73317FF4ADBBE6E983FC /* GlassesAppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55A11E2B0D00B265EE9E01A7 /* GlassesAppState.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		2FAC050F667F35341D034B39 /* TranslationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationEngine.swift; sourceTree = "<group>"; };
+		55A11E2B0D00B265EE9E01A7 /* GlassesAppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesAppState.swift; sourceTree = "<group>"; };
+		68291F47B0C594D6DC5236E9 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		6A57A8D18EBBD2A1097EE836 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		6C27546140E15434E8C93644 /* SkippyAR.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SkippyAR.entitlements; sourceTree = "<group>"; };
+		6D05771F01DEEB677AD33FE7 /* HUDViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDViewModel.swift; sourceTree = "<group>"; };
+		7DFBF85E45A2CE8F47C1FDC7 /* HUDOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDOverlayView.swift; sourceTree = "<group>"; };
+		814219BADBD955D5FC12020E /* SubtitleOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleOverlayView.swift; sourceTree = "<group>"; };
+		904CE054EC31438F1C88A43B /* GlassesRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesRootView.swift; sourceTree = "<group>"; };
+		A32349CF31F34E7D723BE740 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		AAE1E3F413D115E664E5DFFB /* GlassesDisplayManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesDisplayManager.swift; sourceTree = "<group>"; };
+		C90AAAD07799ADF2E853FAE5 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		DE3BD9884CF6104AC3936457 /* SkippyARApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkippyARApp.swift; sourceTree = "<group>"; };
+		E546B438A5FC2A15DFA6307E /* SkippyAR.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SkippyAR.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F1D39940388EB48A5EB0A160 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		FAB6A1A71382AADC541ADAAC /* GlassesNotConnectedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesNotConnectedView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		040BA6606D029E6F58CE2B48 /* SkippyAR */ = {
+			isa = PBXGroup;
+			children = (
+				A32349CF31F34E7D723BE740 /* AppDelegate.swift */,
+				68291F47B0C594D6DC5236E9 /* Assets.xcassets */,
+				F1D39940388EB48A5EB0A160 /* Info.plist */,
+				6C27546140E15434E8C93644 /* SkippyAR.entitlements */,
+				DE3BD9884CF6104AC3936457 /* SkippyARApp.swift */,
+				445AB4CA0B9DADC91504E989 /* Display */,
+				40F82FE3E9207D3DA97E1AF7 /* HUD */,
+				6D3213299F8E185D4BCF7F12 /* Translation */,
+				0B853CE0B3267D901102AA3B /* Views */,
+			);
+			path = SkippyAR;
+			sourceTree = "<group>";
+		};
+		0B853CE0B3267D901102AA3B /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				6A57A8D18EBBD2A1097EE836 /* ContentView.swift */,
+				FAB6A1A71382AADC541ADAAC /* GlassesNotConnectedView.swift */,
+				904CE054EC31438F1C88A43B /* GlassesRootView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		2F4EDE1EDFD3EF0F8B8E0687 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				E546B438A5FC2A15DFA6307E /* SkippyAR.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		40F82FE3E9207D3DA97E1AF7 /* HUD */ = {
+			isa = PBXGroup;
+			children = (
+				7DFBF85E45A2CE8F47C1FDC7 /* HUDOverlayView.swift */,
+				6D05771F01DEEB677AD33FE7 /* HUDViewModel.swift */,
+			);
+			path = HUD;
+			sourceTree = "<group>";
+		};
+		445AB4CA0B9DADC91504E989 /* Display */ = {
+			isa = PBXGroup;
+			children = (
+				55A11E2B0D00B265EE9E01A7 /* GlassesAppState.swift */,
+				AAE1E3F413D115E664E5DFFB /* GlassesDisplayManager.swift */,
+				C90AAAD07799ADF2E853FAE5 /* SceneDelegate.swift */,
+			);
+			path = Display;
+			sourceTree = "<group>";
+		};
+		6D3213299F8E185D4BCF7F12 /* Translation */ = {
+			isa = PBXGroup;
+			children = (
+				814219BADBD955D5FC12020E /* SubtitleOverlayView.swift */,
+				2FAC050F667F35341D034B39 /* TranslationEngine.swift */,
+			);
+			path = Translation;
+			sourceTree = "<group>";
+		};
+		6EB1D3B2E8C9CCBCB855AD8E = {
+			isa = PBXGroup;
+			children = (
+				040BA6606D029E6F58CE2B48 /* SkippyAR */,
+				2F4EDE1EDFD3EF0F8B8E0687 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F8969CA6727D07AF768B0AB4 /* SkippyAR */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4ABCD969D1C156CE086795AB /* Build configuration list for PBXNativeTarget "SkippyAR" */;
+			buildPhases = (
+				EF906BCCC8E4FB9DE2CBF140 /* Sources */,
+				72D217DE4BAEDF59B636EF60 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SkippyAR;
+			packageProductDependencies = (
+			);
+			productName = SkippyAR;
+			productReference = E546B438A5FC2A15DFA6307E /* SkippyAR.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A902BAD04DB37349102545F9 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = BEEBEB42DE28186D8005B431 /* Build configuration list for PBXProject "SkippyAR" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 6EB1D3B2E8C9CCBCB855AD8E;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 2F4EDE1EDFD3EF0F8B8E0687 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F8969CA6727D07AF768B0AB4 /* SkippyAR */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		72D217DE4BAEDF59B636EF60 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				72A2B88D1A135772A0546915 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		EF906BCCC8E4FB9DE2CBF140 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				232AEBF30BF6C4C459E2A76C /* AppDelegate.swift in Sources */,
+				0CA505F136C66506F8123637 /* ContentView.swift in Sources */,
+				FFAA73317FF4ADBBE6E983FC /* GlassesAppState.swift in Sources */,
+				A9DCD3D541F55452C56763EB /* GlassesDisplayManager.swift in Sources */,
+				D2B004CEAE8BAB81061D0F18 /* GlassesNotConnectedView.swift in Sources */,
+				B20F8E1E67ED55E9BCC0FF8B /* GlassesRootView.swift in Sources */,
+				A4943889AC1D17286DFEB1E0 /* HUDOverlayView.swift in Sources */,
+				DA79F6AC2310E9ECA48AB834 /* HUDViewModel.swift in Sources */,
+				7DAC474054DC9DF193B1AFA3 /* SceneDelegate.swift in Sources */,
+				F9E3911415F1F9B7A0003439 /* SkippyARApp.swift in Sources */,
+				87FB67D90A511F05FAB5020C /* SubtitleOverlayView.swift in Sources */,
+				C6BCFD80C29BE8706CDB4361 /* TranslationEngine.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		1E64D5AA820ABDD0F10D2CEE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_FILE = SkippyAR/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.10;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Release;
+		};
+		25F2CC111C4ECBAF56F3982D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_FILE = SkippyAR/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.10;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Debug;
+		};
+		4DD505E48E4AC732F62381E0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SkippyAR/SkippyAR.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = SkippyAR/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.skippy.SkippyAR;
+				PRODUCT_NAME = SkippyAR;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		675398EE83A69EDED063B7A3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SkippyAR/SkippyAR.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = SkippyAR/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.skippy.SkippyAR;
+				PRODUCT_NAME = SkippyAR;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		4ABCD969D1C156CE086795AB /* Build configuration list for PBXNativeTarget "SkippyAR" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4DD505E48E4AC732F62381E0 /* Debug */,
+				675398EE83A69EDED063B7A3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BEEBEB42DE28186D8005B431 /* Build configuration list for PBXProject "SkippyAR" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				25F2CC111C4ECBAF56F3982D /* Debug */,
+				1E64D5AA820ABDD0F10D2CEE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A902BAD04DB37349102545F9 /* Project object */;
+}

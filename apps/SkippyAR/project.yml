@@ -1,0 +1,26 @@
+name: SkippyAR
+options:
+  bundleIdPrefix: com.skippy
+  deploymentTarget:
+    iOS: "18.0"
+  xcodeVersion: "16"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    TARGETED_DEVICE_FAMILY: "2"  # iPad only
+    INFOPLIST_FILE: SkippyAR/Info.plist
+
+targets:
+  SkippyAR:
+    type: application
+    platform: iOS
+    sources:
+      - path: SkippyAR
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.skippy.SkippyAR
+        PRODUCT_NAME: SkippyAR
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    entitlements:
+      path: SkippyAR/SkippyAR.entitlements

@@ -1,0 +1,71 @@
+image: eclipse-temurin:17-jdk
+
+variables:
+  ANDROID_HOME: /android-sdk
+  ANDROID_COMPILE_SDK: "34"
+  ANDROID_BUILD_TOOLS: "34.0.0"
+
+stages:
+  - build
+  - test
+  - package
+
+# Cache Gradle and Android SDK downloads between runs
+cache:
+  key: "$CI_COMMIT_REF_SLUG"
+  paths:
+    - .gradle/
+    - $ANDROID_HOME/
+
+before_script:
+  - apt-get update -qq && apt-get install -y wget unzip
+  # Install cmdline-tools if not cached
+  - |
+    if [ ! -d "$ANDROID_HOME/cmdline-tools" ]; then
+      mkdir -p "$ANDROID_HOME"
+      wget -q "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" -O /tmp/tools.zip
+      unzip -q /tmp/tools.zip -d /tmp/cmdline-tools
+      mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
+      mv /tmp/cmdline-tools/cmdline-tools/* "$ANDROID_HOME/cmdline-tools/latest/"
+    fi
+  - export PATH="$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools"
+  - |
+    yes | sdkmanager --sdk_root="$ANDROID_HOME" \
+      "platform-tools" \
+      "platforms;android-$ANDROID_COMPILE_SDK" \
+      "build-tools;$ANDROID_BUILD_TOOLS" 2>/dev/null | grep -v "^\[" || true
+  - chmod +x ./gradlew
+
+lint:
+  stage: build
+  script:
+    - ./gradlew lint --stacktrace
+  artifacts:
+    when: always
+    paths:
+      - app/build/reports/lint-results-debug.html
+    expire_in: 1 week
+
+unit_tests:
+  stage: test
+  script:
+    - ./gradlew test --stacktrace
+  artifacts:
+    when: always
+    reports:
+      junit: app/build/test-results/testDebugUnitTest/TEST-*.xml
+    paths:
+      - app/build/reports/tests/
+    expire_in: 1 week
+
+assemble_debug:
+  stage: package
+  script:
+    - ./gradlew assembleDebug --stacktrace
+  artifacts:
+    paths:
+      - app/build/outputs/apk/debug/app-debug.apk
+    expire_in: 2 weeks
+  only:
+    - main
+    - merge_requests

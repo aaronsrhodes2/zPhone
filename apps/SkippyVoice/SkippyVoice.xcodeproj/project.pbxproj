@@ -1,0 +1,376 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		000486AA107A9DF3DDA9E9AA /* CameraFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22561C0F9334E22B9BC6D66A /* CameraFeedView.swift */; };
+		07FF22D121060FEF3CB30715 /* TargetApps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BE25AFFAF55E91BF9653521 /* TargetApps.swift */; };
+		22242CAF037B44F894DB68F8 /* VoiceSubmitEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C6C3A96CBD02697F1A760CA /* VoiceSubmitEngine.swift */; };
+		275A1AB98081384C694A409D /* PassthroughManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BA1DCFB2324D0366BE9879A /* PassthroughManager.swift */; };
+		308709A04376949E671CA95A /* AudioDeviceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2285AA47E5FC80E0988EBA59 /* AudioDeviceManager.swift */; };
+		60ABAA8E8CEE4A08E9C57E33 /* PassthroughRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0C3CE9F1CCE2FB1E927A2CD /* PassthroughRootView.swift */; };
+		7365B686C2ED8523E890877E /* CommandRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F12344FA6F4DB7563E74BDD9 /* CommandRecognizer.swift */; };
+		98A503FC72967B061662CA9D /* SkippyVoiceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF0C30E74ED0E78B71248605 /* SkippyVoiceApp.swift */; };
+		C1025035A1DDEA09F7163BBE /* FrontmostAppWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED30D9D3C392BFAEBE368BE0 /* FrontmostAppWatcher.swift */; };
+		C3732D6F0A4FACD10AB2B56E /* KeystrokeInjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E50DA9377A242A4E4CC01E /* KeystrokeInjector.swift */; };
+		D9C7EE715F53C066D122F5C4 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B336B9BDCEBEA48131624FF /* MenuBarView.swift */; };
+		EE374285CA22C676A04BF1B2 /* LEDBarLabel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AF9F1E96C05161434240AAA /* LEDBarLabel.swift */; };
+		FC38CBAC7CF6AEBB5FAAB968 /* SilenceDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = D14BBC563838A669A0BF7413 /* SilenceDetector.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0B336B9BDCEBEA48131624FF /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
+		0C6C3A96CBD02697F1A760CA /* VoiceSubmitEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSubmitEngine.swift; sourceTree = "<group>"; };
+		22561C0F9334E22B9BC6D66A /* CameraFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraFeedView.swift; sourceTree = "<group>"; };
+		2285AA47E5FC80E0988EBA59 /* AudioDeviceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDeviceManager.swift; sourceTree = "<group>"; };
+		2AF9F1E96C05161434240AAA /* LEDBarLabel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LEDBarLabel.swift; sourceTree = "<group>"; };
+		2BA1DCFB2324D0366BE9879A /* PassthroughManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassthroughManager.swift; sourceTree = "<group>"; };
+		5BE25AFFAF55E91BF9653521 /* TargetApps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetApps.swift; sourceTree = "<group>"; };
+		684B1DEC87F73F3010B31A57 /* SkippyVoice.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SkippyVoice.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B61AE152B5E6A183BCB0DAF1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		B98B97F8D34D6BDE6B0DFCCC /* SkippyVoice.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SkippyVoice.entitlements; sourceTree = "<group>"; };
+		C0C3CE9F1CCE2FB1E927A2CD /* PassthroughRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassthroughRootView.swift; sourceTree = "<group>"; };
+		CF0C30E74ED0E78B71248605 /* SkippyVoiceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkippyVoiceApp.swift; sourceTree = "<group>"; };
+		D14BBC563838A669A0BF7413 /* SilenceDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SilenceDetector.swift; sourceTree = "<group>"; };
+		E7E50DA9377A242A4E4CC01E /* KeystrokeInjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeystrokeInjector.swift; sourceTree = "<group>"; };
+		ED30D9D3C392BFAEBE368BE0 /* FrontmostAppWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrontmostAppWatcher.swift; sourceTree = "<group>"; };
+		F12344FA6F4DB7563E74BDD9 /* CommandRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandRecognizer.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		12CBD303A1AC78974ED47249 /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				2285AA47E5FC80E0988EBA59 /* AudioDeviceManager.swift */,
+				F12344FA6F4DB7563E74BDD9 /* CommandRecognizer.swift */,
+				D14BBC563838A669A0BF7413 /* SilenceDetector.swift */,
+			);
+			path = Audio;
+			sourceTree = "<group>";
+		};
+		2CAAC5DD20F7A76C15018AC8 /* Passthrough */ = {
+			isa = PBXGroup;
+			children = (
+				22561C0F9334E22B9BC6D66A /* CameraFeedView.swift */,
+				2BA1DCFB2324D0366BE9879A /* PassthroughManager.swift */,
+				C0C3CE9F1CCE2FB1E927A2CD /* PassthroughRootView.swift */,
+			);
+			path = Passthrough;
+			sourceTree = "<group>";
+		};
+		3A158481FE18A255EE82B857 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				2AF9F1E96C05161434240AAA /* LEDBarLabel.swift */,
+				0B336B9BDCEBEA48131624FF /* MenuBarView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		5E42C5D4F6E14BC02731D79A = {
+			isa = PBXGroup;
+			children = (
+				E19D575715918809865C4D67 /* SkippyVoice */,
+				E30A51C20D7B48155465CCF3 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		6D39282D9A9CE1F8BADA2F5F /* Accessibility */ = {
+			isa = PBXGroup;
+			children = (
+				E7E50DA9377A242A4E4CC01E /* KeystrokeInjector.swift */,
+			);
+			path = Accessibility;
+			sourceTree = "<group>";
+		};
+		E19D575715918809865C4D67 /* SkippyVoice */ = {
+			isa = PBXGroup;
+			children = (
+				B61AE152B5E6A183BCB0DAF1 /* Info.plist */,
+				B98B97F8D34D6BDE6B0DFCCC /* SkippyVoice.entitlements */,
+				CF0C30E74ED0E78B71248605 /* SkippyVoiceApp.swift */,
+				0C6C3A96CBD02697F1A760CA /* VoiceSubmitEngine.swift */,
+				6D39282D9A9CE1F8BADA2F5F /* Accessibility */,
+				E55EC5C7ABEBA2972B43005D /* AppWatcher */,
+				12CBD303A1AC78974ED47249 /* Audio */,
+				2CAAC5DD20F7A76C15018AC8 /* Passthrough */,
+				3A158481FE18A255EE82B857 /* Views */,
+			);
+			path = SkippyVoice;
+			sourceTree = "<group>";
+		};
+		E30A51C20D7B48155465CCF3 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				684B1DEC87F73F3010B31A57 /* SkippyVoice.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		E55EC5C7ABEBA2972B43005D /* AppWatcher */ = {
+			isa = PBXGroup;
+			children = (
+				ED30D9D3C392BFAEBE368BE0 /* FrontmostAppWatcher.swift */,
+				5BE25AFFAF55E91BF9653521 /* TargetApps.swift */,
+			);
+			path = AppWatcher;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		3313B3BE3B8D6BE2839C55FB /* SkippyVoice */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 93AE53B316C25BA6C54CEA42 /* Build configuration list for PBXNativeTarget "SkippyVoice" */;
+			buildPhases = (
+				2FFF6EA184D603738FBD84D5 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SkippyVoice;
+			packageProductDependencies = (
+			);
+			productName = SkippyVoice;
+			productReference = 684B1DEC87F73F3010B31A57 /* SkippyVoice.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		8723D90F45582A3778F641DA /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = E63FEBD4CC7B2F8A6F277F84 /* Build configuration list for PBXProject "SkippyVoice" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 5E42C5D4F6E14BC02731D79A;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = E30A51C20D7B48155465CCF3 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				3313B3BE3B8D6BE2839C55FB /* SkippyVoice */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		2FFF6EA184D603738FBD84D5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				308709A04376949E671CA95A /* AudioDeviceManager.swift in Sources */,
+				000486AA107A9DF3DDA9E9AA /* CameraFeedView.swift in Sources */,
+				7365B686C2ED8523E890877E /* CommandRecognizer.swift in Sources */,
+				C1025035A1DDEA09F7163BBE /* FrontmostAppWatcher.swift in Sources */,
+				C3732D6F0A4FACD10AB2B56E /* KeystrokeInjector.swift in Sources */,
+				EE374285CA22C676A04BF1B2 /* LEDBarLabel.swift in Sources */,
+				D9C7EE715F53C066D122F5C4 /* MenuBarView.swift in Sources */,
+				275A1AB98081384C694A409D /* PassthroughManager.swift in Sources */,
+				60ABAA8E8CEE4A08E9C57E33 /* PassthroughRootView.swift in Sources */,
+				FC38CBAC7CF6AEBB5FAAB968 /* SilenceDetector.swift in Sources */,
+				98A503FC72967B061662CA9D /* SkippyVoiceApp.swift in Sources */,
+				07FF22D121060FEF3CB30715 /* TargetApps.swift in Sources */,
+				22242CAF037B44F894DB68F8 /* VoiceSubmitEngine.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		1D0ECAF66CDA6EB7B3B750D7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SkippyVoice/SkippyVoice.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = SkippyVoice/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.skippy.SkippyVoice;
+				PRODUCT_NAME = SkippyVoice;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		B39C7106D760910DF477C83B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SkippyVoice/SkippyVoice.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = SkippyVoice/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.skippy.SkippyVoice;
+				PRODUCT_NAME = SkippyVoice;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		BC837A664936658C0B8B0317 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_FILE = SkippyVoice/Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.10;
+			};
+			name = Debug;
+		};
+		F090F0D5CA4D6DA20FB01270 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_FILE = SkippyVoice/Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.10;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		93AE53B316C25BA6C54CEA42 /* Build configuration list for PBXNativeTarget "SkippyVoice" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B39C7106D760910DF477C83B /* Debug */,
+				1D0ECAF66CDA6EB7B3B750D7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E63FEBD4CC7B2F8A6F277F84 /* Build configuration list for PBXProject "SkippyVoice" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BC837A664936658C0B8B0317 /* Debug */,
+				F090F0D5CA4D6DA20FB01270 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 8723D90F45582A3778F641DA /* Project object */;
+}

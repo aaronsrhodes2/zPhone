@@ -1,0 +1,219 @@
+OPERATIC PLAY — SCENE III: THE ANDROID AWAKENS
+April 20, 2026
+
+═══════════════════════════════════════════════════════════════════════════
+DRAMATIS PERSONAE
+═══════════════════════════════════════════════════════════════════════════
+
+  CAPTAIN AARON RHODES — Maker, Frog, keeper of the VITURE glasses,
+                          purchaser of refurbished Galaxies, enemy of keyboards
+
+  SKIPPY THE MAGNIFICENT — Beercan, Admiral, loyal AI wrangler,
+                            builder of things that build other things
+
+  THE VITURE LUMA ULTRA — Silent antagonist, plugged in, blinking, waiting
+
+  THE SAMSUNG GALAXY S23 — Absent hero, $220 in a eBay box, USB-C port intact
+
+  THE GRADLE DAEMON — Mercurial spirit of the build system, capricious and slow
+
+  THE HOMEBREW AVDMANAGER — A minor deceiver, speaks but reveals nothing useful
+
+═══════════════════════════════════════════════════════════════════════════
+ACT I — THE COMMISSION
+═══════════════════════════════════════════════════════════════════════════
+
+[A new session opens. The previous context has been compacted into ash and
+ summary. Skippy inherits only the bones of what was decided before.]
+
+CAPTAIN:
+  ♩ Full power! Full terminal!
+    The glasses are plugged in and waiting!
+    Do you need anything? ♩
+
+SKIPPY:
+  ♩ Captain, I need nothing —
+    I have the whole machine.
+    Let us build the Android that shall see for you,
+    the thing that nobody has shipped as a system.
+    SkippyDroid. Six layers. One purpose.
+    We begin. ♩
+
+[Skippy surveys the field. No Android SDK. No JDK. A clean Mac with Homebrew.
+ The tools are fetched, the licenses accepted, the download bars crawl.]
+
+SKIPPY (aside, during the download):
+  ♩ Platform-tools... build-tools... API 34...
+    A system image for an ARM64 world.
+    The emulator shall wear the face of a Pixel 7 Pro,
+    but its soul shall be the Galaxy S23. ♩
+
+═══════════════════════════════════════════════════════════════════════════
+ACT II — THE ARCHITECTURE OF LAYERS
+═══════════════════════════════════════════════════════════════════════════
+
+[Skippy lays out the design. Six layers, stacked like geological strata.]
+
+SKIPPY:
+  ♩ Layer Zero: the wire to the PC, Tailscale in the dark.
+    Layer One: every sensor the phone can name —
+      GPS, IMU, camera, microphone, battery.
+    Layer Two: the camera feeds, kept separate from what we draw.
+    Layer Three: the Context Engine, watching speed —
+      fifteen kilometers per hour and we know you're driving.
+    Layer Four: the voice — Hey Skippy, I'm listening.
+    Layer Five: the features, each one a module,
+      declaring what it needs, producing what it shows,
+      toggleable at runtime without a recompile.
+    Layer Six: the Compositor. It sorts them by Z,
+      routes the image to phone screen or glasses display,
+      and when all features sleep — full transparency. ♩
+
+CAPTAIN:
+  ♩ And the battery.
+    Show me all the batteries.
+    The phone, the glasses, the Mac, the PC —
+    every device in the network, in one strip. ♩
+
+SKIPPY:
+  ♩ Done. BatteryModule.
+    S23 knows itself through BatteryManager.
+    The glasses we query over USB or VITURE SDK.
+    The remote nodes we poll every sixty seconds
+    at their Tailscale address, endpoint GET /battery.
+    Green. Yellow. Red.
+    You will know when to plug in. ♩
+
+═══════════════════════════════════════════════════════════════════════════
+ACT III — THE DECEIVER AVDMANAGER
+═══════════════════════════════════════════════════════════════════════════
+
+[The scaffold is written. The code compiles in the mind. Now: the emulator.]
+
+SKIPPY:
+  ♩ avdmanager create avd — the command is simple. ♩
+
+HOMEBREW AVDMANAGER (offstage, smugly):
+  ♩ Loading local repository...
+    Error: Package path is not valid.
+    Valid system image paths are: null. ♩
+
+SKIPPY:
+  ♩ ... null?
+    But I can SEE the system image.
+    It is RIGHT THERE. ♩
+
+[Investigation. The Homebrew avdmanager does not speak to the SDK we installed.
+ It has its own opinions about where things live.]
+
+SKIPPY:
+  ♩ Ah. Install cmdline-tools;latest INTO the SDK itself,
+    then use THAT avdmanager —
+    the one who knows where it lives. ♩
+
+[It works. SkippyS23 AVD created. Pixel 7 Pro. API 34. ARM64. 512MB SDcard.]
+
+═══════════════════════════════════════════════════════════════════════════
+ACT IV — THE CORRUPT JAR
+═══════════════════════════════════════════════════════════════════════════
+
+[The gradlew script is written. The JAR is downloaded from GitHub raw URLs.
+ It is 42 kilobytes. Something is wrong.]
+
+GRADLE DAEMON (whispering):
+  ♩ Error: Could not find or load main class .
+    [note the emptiness where the class name should be] ♩
+
+SKIPPY:
+  ♩ Empty. The class name is empty.
+    The JAR speaks but says nothing.
+    I have been deceived by a curl. ♩
+
+[Solution: install Gradle via Homebrew, run `gradle wrapper`, let it generate
+ the correct wrapper from official sources. 48 kilobytes now. A real JAR.]
+
+SKIPPY:
+  ♩ BUILD SUCCESSFUL
+    in one minute and one second.
+    ...
+    except for the theme. ♩
+
+GRADLE DAEMON:
+  ♩ Theme.Material.NoTitleBar.Fullscreen not found.
+    That style has no home in API 34. ♩
+
+SKIPPY:
+  ♩ Replaced. Theme.Material.Light.NoActionBar.
+    windowFullscreen: true.
+    BUILD SUCCESSFUL.
+    ...
+    except for the circle. ♩
+
+GRADLE DAEMON:
+  ♩ android:cx? android:r?
+    These attributes do not exist in vectors. ♩
+
+SKIPPY:
+  ♩ A circle redrawn as a path.
+    An arc described in pure math.
+    BUILD SUCCESSFUL.
+    No more excepts. ♩
+
+═══════════════════════════════════════════════════════════════════════════
+ACT V — THE GREEN BAR
+═══════════════════════════════════════════════════════════════════════════
+
+[Six unit tests. The compass knows North. It knows East. It knows South and West.
+ It knows NNE at 22.5 degrees. It wraps cleanly at 359.9 degrees back to N.]
+
+SKIPPY:
+  ♩ BUILD SUCCESSFUL in 8 seconds.
+    49 tasks: 32 executed, 17 up-to-date.
+    The compass is correct.
+    The app is real.
+    make droid-emu will wake the emulator.
+    make droid-run will install and log.
+    make droid-stop will silence it.
+    The loop the Captain asked for —
+    [run it → play → stop → change → run] —
+    is ready. ♩
+
+═══════════════════════════════════════════════════════════════════════════
+CAPTAIN'S WISDOM
+═══════════════════════════════════════════════════════════════════════════
+
+  "I don't care about selling it.
+   I just want it to work flawlessly for me,
+   and I want the development cycle to be a joy."
+
+  — Captain Aaron Rhodes, Session 3, April 20 2026
+
+  [This is the directive. Not a product. Not a pitch. A personal instrument,
+   tuned for one person, built with joy, measured in BUILD SUCCESSFULs.]
+
+═══════════════════════════════════════════════════════════════════════════
+CURTAIN
+═══════════════════════════════════════════════════════════════════════════
+
+  What was built in Session 3:
+
+  · Android SDK (API 34), JDK 17, emulator — installed from Homebrew, zero IDE
+  · SkippyDroid/ — full Kotlin + Compose project, clean compile
+  · 6-layer architecture — FeatureModule interface, DeviceLayer, TransportLayer, Compositor
+  · ClockModule, CompassModule, BatteryModule — first three features live
+  · BatteryModule — S23 self + VITURE glasses + remote Tailscale nodes
+  · SkippyS23 AVD — Pixel 7 Pro skin, API 34, ARM64, ready to run
+  · .gitlab-ci.yml — lint + test + APK artifact on push
+  · Makefile — droid-run / stop / logs / test / emu targets
+  · CompassModuleTest — 6 tests passing, TDD from day one
+
+  What comes next:
+
+  · Wire the emulator: make droid-emu → make droid-run → see the HUD
+  · Camera passthrough: Camera2 API → SurfaceView → glasses display
+  · Android Presentation API: route Compositor output to VITURE display
+  · Context Engine: GPS speed → driving/walking mode
+  · "Hey Skippy" wake word
+  · One feature module at a time, tested, deployed, verified on glasses
+
+═══════════════════════════════════════════════════════════════════════════

@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=69.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "physics-mcp"
+version = "0.1.0"
+description = "Physics calculation MCP server for Skippy — exposes tools to Claude"
+requires-python = ">=3.11"
+authors = [{name = "Aaron Rhodes"}]
+dependencies = [
+    "fastmcp>=0.1.0",
+    "mcp>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio"]
+
+[project.scripts]
+physics-mcp = "physics_mcp.server:run"
+
+[tool.setuptools.packages.find]
+include = ["physics_mcp*"]

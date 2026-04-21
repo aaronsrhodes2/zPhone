@@ -1,0 +1,92 @@
+name: skippy
+
+services:
+
+  # ──────────────────────────────────────────────
+  # Ollama — local LLM inference
+  # NOTE: On macOS, Docker containers cannot access Metal GPU.
+  # Ollama runs CPU-only inside Docker.
+  # For GPU inference, run Ollama natively via: brew install ollama
+  # ──────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: skippy-ollama
+    restart: unless-stopped
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - skippy-net
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  # ──────────────────────────────────────────────
+  # Flask API — Python endpoints that call Ollama
+  # Hot reload enabled via FLASK_DEBUG=1
+  # ──────────────────────────────────────────────
+  flask-api:
+    build:
+      context: ./services/flask-api
+      dockerfile: Dockerfile
+    container_name: skippy-flask
+    restart: unless-stopped
+    ports:
+      - "${FLASK_PORT:-5001}:5000"
+    volumes:
+      - ./services/flask-api/app:/app/app
+    networks:
+      - skippy-net
+    environment:
+      - FLASK_DEBUG=${FLASK_DEBUG:-1}
+      - FLASK_APP=app.main
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-llama3.2}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+  # ──────────────────────────────────────────────
+  # Model Servers — uncomment to enable
+  # ──────────────────────────────────────────────
+
+  # vllm:
+  #   image: vllm/vllm-openai:latest
+  #   container_name: skippy-vllm
+  #   ports:
+  #     - "${VLLM_PORT:-8000}:8000"
+  #   networks:
+  #     - skippy-net
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - capabilities: [gpu]  # Linux + NVIDIA only
+
+  # llamacpp:
+  #   image: ghcr.io/ggerganov/llama.cpp:server
+  #   container_name: skippy-llamacpp
+  #   ports:
+  #     - "${LLAMACPP_PORT:-8080}:8080"
+  #   volumes:
+  #     - llamacpp_models:/models
+  #   networks:
+  #     - skippy-net
+
+networks:
+  skippy-net:
+    driver: bridge
+    name: skippy-net
+
+volumes:
+  ollama_models:
+    name: skippy_ollama_models
+  # llamacpp_models:
+  #   name: skippy_llamacpp_models
