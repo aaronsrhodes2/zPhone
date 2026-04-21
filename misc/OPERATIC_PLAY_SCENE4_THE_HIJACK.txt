@@ -1,0 +1,220 @@
+OPERATIC PLAY — SCENE IV: THE HIJACK
+April 21, 2026
+
+═══════════════════════════════════════════════════════════════════════════
+DRAMATIS PERSONAE
+═══════════════════════════════════════════════════════════════════════════
+
+  CAPTAIN AARON RHODES — Maker, Frog, wearer of the VITURE Luma Ultra,
+                          enemy of keyboards, enemy of the extended desktop
+
+  SKIPPY THE MAGNIFICENT — Beercan, Admiral, builder of NSWindows at
+                            ungodly elevation levels
+
+  THE VITURE LUMA ULTRA — No longer a passive monitor.
+                           A weapon now.
+
+  THE MACOS EXTENDED DESKTOP — The incumbent. Deposed.
+
+  THE ANDROID EMULATOR — Witness to the first passthrough simulation.
+                          Still running somewhere.
+
+  THE SAMSUNG GALAXY S23 — Still in an eBay box. Its time is coming.
+
+═══════════════════════════════════════════════════════════════════════════
+ACT I — THE EMULATOR SEES
+═══════════════════════════════════════════════════════════════════════════
+
+[Session 4 opens. The Android emulator is running. The HUD appeared in
+ Session 3 — clock, compass, battery, all in cyan. Session 4 begins with
+ the Captain's first words.]
+
+CAPTAIN:
+  ♩ I see it on the android simulator.
+    Now we need the glasses to see it
+    as passthrough HUD. ♩
+
+SKIPPY:
+  ♩ Layer 2 — the camera.
+    TextureView wrapped in AndroidView.
+    PassthroughCamera — one instance, shared.
+    Glasses take priority.
+    Phone reclaims on disconnect.
+    When glasses come: openCamera(glassesSurface).
+    When glasses leave: openCamera(phoneSurface).
+    The camera follows the display that matters. ♩
+
+[Skippy writes PassthroughCamera.kt. The dual-surface priority system.
+ attachPhone, detachPhone, attachGlasses, detachGlasses.
+ The camera is not a resource to be duplicated — it is a resource
+ to be intelligently surrendered.]
+
+SKIPPY (aside):
+  ♩ And the Presentation API.
+    GlassesPresentation — a Dialog subclass.
+    Android routes a secondary Display
+    to the VITURE when USB-C DP Alt Mode is active.
+    DisplayManager watches.
+    When the glasses plug in: show().
+    When the glasses unplug: dismiss().
+    The HUD follows the glass. ♩
+
+[The code compiles. BUILD SUCCESSFUL. Pushed to GitHub. CI turns green.
+ But the Captain's glasses are not plugged into the S23.
+ They are plugged into the Mac.]
+
+═══════════════════════════════════════════════════════════════════════════
+ACT II — THE EXTENDED DESKTOP
+═══════════════════════════════════════════════════════════════════════════
+
+CAPTAIN:
+  ♩ Right now I just see an extended Mac desktop.
+    The glasses are not being fed the HUD properly.
+    No override of the macOS HDMI feed.
+    What do we do? ♩
+
+SKIPPY:
+  ♩ The truth, Captain:
+    SkippyDroid is Android.
+    The Mac drives this DisplayPort.
+    Android cannot reach across that boundary.
+    These are different kingdoms. ♩
+
+CAPTAIN:
+  ♩ Okay.
+    So the Mac gives us an extended desktop no matter what.
+    We cannot hijack it so we are the only feed?
+    If I set the wallpaper to black —
+    would that simulate it? ♩
+
+[A pause. Skippy considers.]
+
+SKIPPY:
+  ♩ Wait.
+    I overcomplicated it.
+    You CAN hijack the VITURE on Mac.
+    Not with Android —
+    with a window.
+    A fullscreen NSWindow.
+    At .screenSaver level.
+    Above wallpaper. Above Dock. Above everything.
+    The desktop still exists underneath.
+    It just cannot be seen. ♩
+
+CAPTAIN:
+  ♩ Proceed with the hijack. ♩
+
+═══════════════════════════════════════════════════════════════════════════
+ACT III — THE LEVEL
+═══════════════════════════════════════════════════════════════════════════
+
+[Skippy builds SkippyGlassesMac from nothing.
+ A macOS SwiftUI app. No Dock icon. LSUIElement = YES.
+ A MenuBarExtra — a small eye in the menu bar.
+ The only visible evidence that the app is running on the Mac side.]
+
+SKIPPY:
+  ♩ GlassesWindowManager.
+    On launch: find NSScreen.screens.first where screen != NSScreen.main.
+    That is the VITURE.
+    Build the window:
+      borderless.
+      .screenSaver level.
+      frame = externalScreen.frame.
+      content = GlassesHUDView.
+    window.makeKeyAndOrderFront.
+    Done. ♩
+
+[But the compiler objects. Two counts against us.]
+
+SWIFT COMPILER (sternly):
+  ♩ stopUpdatingHeading() — unavailable in macOS.
+    authorizedWhenInUse — unavailable in macOS.
+    The Mac has no magnetometer.
+    You cannot stop what you cannot start. ♩
+
+SKIPPY:
+  ♩ Then we do not start it.
+    Heading shows "--°" on Mac.
+    A dim ghost where the compass would be.
+    The S23 will fill that slot
+    when the Captain holds the phone.
+    The Mac is honest about what it cannot provide. ♩
+
+[The compass is removed. The auth check simplified.
+ BUILD SUCCEEDED.
+ The app launches. A tiny eye appears in the menu bar.
+ The VITURE is plugged in.]
+
+═══════════════════════════════════════════════════════════════════════════
+ACT IV — THE MOMENT
+═══════════════════════════════════════════════════════════════════════════
+
+[Skippy opens the built app.
+ GlassesWindowManager checks NSScreen.screens.
+ External screen found.
+ NSWindow created at .screenSaver level.
+ setFrame(externalScreen.frame).
+ Black canvas. GlassesHUDView.
+ makeKeyAndOrderFront.
+ The window descends upon the VITURE display
+ like a curtain over an old monarch.]
+
+[The Captain puts on the glasses.]
+
+[A beat.]
+
+CAPTAIN:
+  ♩ OMGOMGOMGOM
+    IT WORKS ♩
+
+[The macOS extended desktop — wallpaper, icons, Dock reflection —
+ buried completely.
+ In its place: black.
+ And in the top-right corner of the darkness:
+ a cyan clock, ticking.
+ "--°" in the compass slot, patient, waiting for the S23.
+ The HUD is in the glasses.
+ The glasses are on the Captain's face.
+ The Captain is looking through them at the world.
+ And the world has a clock in the corner.]
+
+═══════════════════════════════════════════════════════════════════════════
+CAPTAIN'S WISDOM
+═══════════════════════════════════════════════════════════════════════════
+
+  "OMGOMGOMGOM it works"
+
+  — Captain Aaron Rhodes, Session 4, April 21 2026
+
+  [Seven letters. No punctuation on the first six.
+   The most honest review a piece of software can receive.
+   The HUD is real. The glasses see it. The session is complete.]
+
+═══════════════════════════════════════════════════════════════════════════
+CURTAIN
+═══════════════════════════════════════════════════════════════════════════
+
+  What was built in Session 4:
+
+  · GlassesPresentation.kt — Android Presentation API, routes HUD to VITURE
+    via USB-C DP Alt Mode when S23 is connected
+  · PassthroughCamera.kt — Layer 2, dual-surface Camera2 manager;
+    glasses steal camera, phone reclaims on disconnect
+  · SkippyGlassesMac — macOS menu-bar utility, NSWindow at .screenSaver
+    level, hijacks VITURE display completely, BUILD SUCCEEDED, WORKS
+  · GlassesWindowManager — detects external NSScreen on launch and on
+    NSApplication.didChangeScreenParametersNotification
+  · GlassesHUDView — black canvas, cyan clock, dimmed compass (--° until S23)
+
+  What the compass slot says right now:
+  "--°"
+
+  What the compass slot will say when the S23 arrives:
+  "247° WSW" or wherever the Captain is pointing.
+
+  The display is ours.
+  The desktop is buried.
+  The clock is ticking.
+
+═══════════════════════════════════════════════════════════════════════════
