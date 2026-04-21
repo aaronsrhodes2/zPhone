@@ -16,6 +16,8 @@ import com.skippy.droid.features.battery.BatteryModule
 import com.skippy.droid.features.clock.ClockModule
 import com.skippy.droid.features.compass.CompassModule
 import com.skippy.droid.features.coordinates.CoordinatesModule
+import com.skippy.droid.features.navigation.NavigationEngine
+import com.skippy.droid.features.navigation.NavigationModule
 import com.skippy.droid.features.speed.SpeedModule
 import com.skippy.droid.layers.CameraPassthrough
 import com.skippy.droid.layers.ContextEngine
@@ -39,6 +41,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var modules: List<FeatureModule>
 
     private lateinit var contextEngine: ContextEngine
+    lateinit var navEngine: NavigationEngine   // exposed for voice module (future)
 
     private lateinit var displayManager: DisplayManager
     private var glassesPresentation: GlassesPresentation? = null
@@ -55,17 +58,19 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        device      = DeviceLayer(this)
-        transport   = TransportLayer(pcUrl)
-        passthrough = PassthroughCamera(this)
+        device        = DeviceLayer(this)
+        transport     = TransportLayer(pcUrl)
+        passthrough   = PassthroughCamera(this)
         contextEngine = ContextEngine(device)
+        navEngine     = NavigationEngine(device)
 
         modules = listOf(
             ClockModule(),
             CompassModule(device),
             BatteryModule(this, transport),
             CoordinatesModule(device),
-            SpeedModule(device)
+            SpeedModule(device),
+            NavigationModule(navEngine)
         )
 
         // Ask for CAMERA now. If already granted, PassthroughCamera opens as soon as
