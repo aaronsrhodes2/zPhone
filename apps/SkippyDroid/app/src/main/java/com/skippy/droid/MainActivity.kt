@@ -15,6 +15,8 @@ import com.skippy.droid.compositor.GlassesPresentation
 import com.skippy.droid.features.battery.BatteryModule
 import com.skippy.droid.features.clock.ClockModule
 import com.skippy.droid.features.compass.CompassModule
+import com.skippy.droid.features.coordinates.CoordinatesModule
+import com.skippy.droid.features.speed.SpeedModule
 import com.skippy.droid.layers.CameraPassthrough
 import com.skippy.droid.layers.DeviceLayer
 import com.skippy.droid.layers.FeatureModule
@@ -57,7 +59,9 @@ class MainActivity : ComponentActivity() {
         modules = listOf(
             ClockModule(),
             CompassModule(device),
-            BatteryModule(this, transport)
+            BatteryModule(this, transport),
+            CoordinatesModule(device),
+            SpeedModule(device)
         )
 
         // Ask for CAMERA now. If already granted, PassthroughCamera opens as soon as

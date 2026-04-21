@@ -10,6 +10,7 @@
 		1CEDA70B9A5B736F36F7E75B /* GlassesHUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AA93BF2D7EAE26837FFE850 /* GlassesHUDView.swift */; };
 		6224928D75576772742FD038 /* SkippyGlassesMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFBC067B5FB18A73A8FD528A /* SkippyGlassesMacApp.swift */; };
 		6BF0D29629147D863372AF1B /* GlassesWindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD7D688C7FF9A317B92189EE /* GlassesWindowManager.swift */; };
+		88EC0F69B6AF270F0F30B21F /* MacBattery.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A9B983706B93F9639FFCDC /* MacBattery.swift */; };
 		E226D2FCCADAD3684D67C898 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C708ADDC1F29C6607A3A7399 /* AppDelegate.swift */; };
 		FA0A7A8199544EE57C9F2230 /* HUDViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF998CDE0B5F03B6CA978A64 /* HUDViewModel.swift */; };
 /* End PBXBuildFile section */
@@ -21,6 +22,7 @@
 		AF998CDE0B5F03B6CA978A64 /* HUDViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDViewModel.swift; sourceTree = "<group>"; };
 		BFBC067B5FB18A73A8FD528A /* SkippyGlassesMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkippyGlassesMacApp.swift; sourceTree = "<group>"; };
 		C708ADDC1F29C6607A3A7399 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		F9A9B983706B93F9639FFCDC /* MacBattery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacBattery.swift; sourceTree = "<group>"; };
 		FD7D688C7FF9A317B92189EE /* GlassesWindowManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesWindowManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -49,6 +51,7 @@
 				FD7D688C7FF9A317B92189EE /* GlassesWindowManager.swift */,
 				AF998CDE0B5F03B6CA978A64 /* HUDViewModel.swift */,
 				4841BE1BAF71501B4CB7B135 /* Info.plist */,
+				F9A9B983706B93F9639FFCDC /* MacBattery.swift */,
 				BFBC067B5FB18A73A8FD528A /* SkippyGlassesMacApp.swift */,
 			);
 			path = Sources;
@@ -116,6 +119,7 @@
 				1CEDA70B9A5B736F36F7E75B /* GlassesHUDView.swift in Sources */,
 				6BF0D29629147D863372AF1B /* GlassesWindowManager.swift in Sources */,
 				FA0A7A8199544EE57C9F2230 /* HUDViewModel.swift in Sources */,
+				88EC0F69B6AF270F0F30B21F /* MacBattery.swift in Sources */,
 				6224928D75576772742FD038 /* SkippyGlassesMacApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -198,6 +202,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				OTHER_LDFLAGS = "-framework IOKit";
 				PRODUCT_BUNDLE_IDENTIFIER = com.skippy.SkippyGlassesMac;
 				PRODUCT_NAME = SkippyGlassesMac;
 				SDKROOT = macosx;
@@ -272,6 +277,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				OTHER_LDFLAGS = "-framework IOKit";
 				PRODUCT_BUNDLE_IDENTIFIER = com.skippy.SkippyGlassesMac;
 				PRODUCT_NAME = SkippyGlassesMac;
 				SDKROOT = macosx;

@@ -21,8 +21,13 @@ final class HUDViewModel: NSObject, CLLocationManagerDelegate {
     var longitude: Double = 0
     var locationAccuracy: Double = -1   // negative = unavailable
 
+    // Battery
+    var batteryPercent: Int? = nil
+    var batteryCharging: Bool = true
+
     private let location = CLLocationManager()
     private var timer: Timer?
+    private var batteryTimer: Timer?
 
     override init() {
         super.init()
@@ -33,15 +38,28 @@ final class HUDViewModel: NSObject, CLLocationManagerDelegate {
     func start() {
         location.requestWhenInUseAuthorization()
         location.startUpdatingLocation()
+
+        // Clock — every second
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.currentTime = Date()
+        }
+
+        // Battery — read immediately then every 60 s
+        refreshBattery()
+        batteryTimer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { [weak self] _ in
+            self?.refreshBattery()
         }
     }
 
     func stop() {
         location.stopUpdatingLocation()
-        timer?.invalidate()
-        timer = nil
+        timer?.invalidate();        timer = nil
+        batteryTimer?.invalidate(); batteryTimer = nil
+    }
+
+    private func refreshBattery() {
+        batteryPercent  = MacBattery.percent()
+        batteryCharging = MacBattery.isCharging()
     }
 
     // MARK: - CLLocationManagerDelegate

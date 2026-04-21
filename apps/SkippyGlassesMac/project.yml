@@ -22,3 +22,4 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.skippy.SkippyGlassesMac
         PRODUCT_NAME: SkippyGlassesMac
         CODE_SIGN_STYLE: Automatic
+        OTHER_LDFLAGS: "-framework IOKit"

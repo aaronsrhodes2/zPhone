@@ -1,39 +1,50 @@
 import SwiftUI
 
 /// Full-screen view rendered on the VITURE glasses display.
-/// Black background (simulates camera passthrough), HUD in the top-right corner.
+///
+/// Layout (mirrors SkippyDroid's Compositor corner assignments):
+///   TOP-RIGHT  — Clock + Compass heading
+///   TOP-LEFT   — Battery (Mac %)
+///   BOTTOM-LEFT — GPS coordinates
+///
+/// Background is black — stands in for camera passthrough until the S23 is wired.
 struct GlassesHUDView: View {
     @State private var hud = HUDViewModel.shared
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            // Layer 0: black canvas — stands in for camera passthrough
+        ZStack {
             Color.black.ignoresSafeArea()
 
-            // Layer 6: HUD overlay — top-right corner, same corner as SkippyDroid
-            HUDPanel(hud: hud)
+            // ── TOP-RIGHT: Clock + Compass ─────────────────────────
+            VStack(alignment: .trailing, spacing: 2) {
+                ClockRow(date: hud.currentTime)
+                CompassRow(degrees: hud.headingDegrees, cardinal: hud.cardinalDirection)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            .padding(.top, 30)
+            .padding(.trailing, 20)
+
+            // ── TOP-LEFT: Battery ──────────────────────────────────
+            BatteryRow(percent: hud.batteryPercent, charging: hud.batteryCharging)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(.top, 30)
-                .padding(.trailing, 20)
-        }
-        .onAppear { hud.start() }
-        .onDisappear { hud.stop() }
-        .preferredColorScheme(.dark)
-    }
-}
+                .padding(.leading, 20)
 
-// MARK: - HUD panel
-
-private struct HUDPanel: View {
-    let hud: HUDViewModel
-
-    var body: some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            ClockRow(date: hud.currentTime)
-            CompassRow(degrees: hud.headingDegrees, cardinal: hud.cardinalDirection)
+            // ── BOTTOM-LEFT: GPS coordinates ───────────────────────
             if hud.locationAccuracy > 0 {
-                GPSRow(lat: hud.latitude, lon: hud.longitude, accuracy: hud.locationAccuracy)
+                GPSBlock(
+                    lat: hud.latitude,
+                    lon: hud.longitude,
+                    accuracy: hud.locationAccuracy
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                .padding(.bottom, 20)
+                .padding(.leading, 20)
             }
         }
+        .onAppear  { hud.start() }
+        .onDisappear { hud.stop() }
+        .preferredColorScheme(.dark)
     }
 }
 
@@ -65,32 +76,90 @@ private struct CompassRow: View {
         VStack(alignment: .trailing, spacing: 0) {
             Text(degrees >= 0 ? String(format: "%03.0f°", degrees) : "--°")
                 .font(.system(size: 14, weight: .bold, design: .monospaced))
-                .foregroundStyle(degrees >= 0 ? Color.cyan : Color.cyan.opacity(0.4))
+                .foregroundStyle(degrees >= 0 ? Color.cyan : Color.cyan.opacity(0.35))
             Text(cardinal)
                 .font(.system(size: 11, weight: .regular, design: .monospaced))
-                .foregroundStyle(degrees >= 0 ? Color.cyan : Color.cyan.opacity(0.4))
+                .foregroundStyle(degrees >= 0 ? Color.cyan : Color.cyan.opacity(0.35))
         }
     }
 }
 
-// MARK: - GPS (shows only when location is available)
+// MARK: - Battery
 
-private struct GPSRow: View {
+private struct BatteryRow: View {
+    let percent: Int?
+    let charging: Bool
+
+    private var pctText: String {
+        guard let p = percent else { return "AC" }
+        return "\(p)%"
+    }
+
+    private var icon: String {
+        guard let p = percent else { return "powerplug.fill" }
+        if charging { return "battery.100.bolt" }
+        return switch p {
+        case 76...: "battery.100"
+        case 51...: "battery.75"
+        case 26...: "battery.50"
+        case 11...: "battery.25"
+        default:    "battery.0"
+        }
+    }
+
+    private var color: Color {
+        guard let p = percent else { return .green }
+        return switch p {
+        case 51...: .green
+        case 21...: .yellow
+        default:    .red
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 12))
+                .foregroundStyle(color)
+            Text("Mac \(pctText)")
+                .font(.system(size: 11, weight: .regular, design: .monospaced))
+                .foregroundStyle(color)
+        }
+    }
+}
+
+// MARK: - GPS block
+
+private struct GPSBlock: View {
     let lat: Double
     let lon: Double
     let accuracy: Double
 
-    private var latStr: String {
-        String(format: "%.4f°%@", abs(lat), lat >= 0 ? "N" : "S")
-    }
-    private var lonStr: String {
-        String(format: "%.4f°%@", abs(lon), lon >= 0 ? "E" : "W")
-    }
+    private var latStr: String { dms(lat, pos: "N", neg: "S") }
+    private var lonStr: String { dms(lon, pos: "E", neg: "W") }
 
     var body: some View {
-        Text("\(latStr) \(lonStr)")
-            .font(.system(size: 10, weight: .regular, design: .monospaced))
-            .foregroundStyle(Color.green.opacity(0.7))
+        VStack(alignment: .leading, spacing: 1) {
+            Text(latStr)
+                .font(.system(size: 11, weight: .regular, design: .monospaced))
+                .foregroundStyle(Color.green)
+            Text(lonStr)
+                .font(.system(size: 11, weight: .regular, design: .monospaced))
+                .foregroundStyle(Color.green)
+            Text("±\(Int(accuracy)) m")
+                .font(.system(size: 9, weight: .regular, design: .monospaced))
+                .foregroundStyle(Color.green.opacity(0.5))
+        }
+    }
+
+    private func dms(_ value: Double, pos: String, neg: String) -> String {
+        let dir = value >= 0 ? pos : neg
+        let abs = Swift.abs(value)
+        let d = Int(abs)
+        let mRaw = (abs - Double(d)) * 60
+        let m = Int(mRaw)
+        let s = Int((mRaw - Double(m)) * 60)
+        return "\(d)°\(String(format: "%02d", m))'\(String(format: "%02d", s))\"\(dir)"
     }
 }
 
@@ -98,5 +167,5 @@ private struct GPSRow: View {
 
 #Preview {
     GlassesHUDView()
-        .frame(width: 800, height: 500)
+        .frame(width: 960, height: 600)
 }
