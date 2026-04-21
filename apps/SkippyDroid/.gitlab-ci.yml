@@ -4,17 +4,19 @@ variables:
   ANDROID_HOME: /android-sdk
   ANDROID_COMPILE_SDK: "34"
   ANDROID_BUILD_TOOLS: "34.0.0"
+  # All Gradle commands run from the app subdirectory
+  DROID_DIR: apps/SkippyDroid
 
 stages:
   - build
   - test
   - package
 
-# Cache Gradle and Android SDK downloads between runs
+# Cache Gradle downloads and Android SDK between runs
 cache:
   key: "$CI_COMMIT_REF_SLUG"
   paths:
-    - .gradle/
+    - $DROID_DIR/.gradle/
     - $ANDROID_HOME/
 
 before_script:
@@ -34,37 +36,37 @@ before_script:
       "platform-tools" \
       "platforms;android-$ANDROID_COMPILE_SDK" \
       "build-tools;$ANDROID_BUILD_TOOLS" 2>/dev/null | grep -v "^\[" || true
-  - chmod +x ./gradlew
+  - chmod +x $DROID_DIR/gradlew
 
 lint:
   stage: build
   script:
-    - ./gradlew lint --stacktrace
+    - cd $DROID_DIR && ./gradlew lint --stacktrace
   artifacts:
     when: always
     paths:
-      - app/build/reports/lint-results-debug.html
+      - $DROID_DIR/app/build/reports/lint-results-debug.html
     expire_in: 1 week
 
 unit_tests:
   stage: test
   script:
-    - ./gradlew test --stacktrace
+    - cd $DROID_DIR && ./gradlew test --stacktrace
   artifacts:
     when: always
     reports:
-      junit: app/build/test-results/testDebugUnitTest/TEST-*.xml
+      junit: $DROID_DIR/app/build/test-results/testDebugUnitTest/TEST-*.xml
     paths:
-      - app/build/reports/tests/
+      - $DROID_DIR/app/build/reports/tests/
     expire_in: 1 week
 
 assemble_debug:
   stage: package
   script:
-    - ./gradlew assembleDebug --stacktrace
+    - cd $DROID_DIR && ./gradlew assembleDebug --stacktrace
   artifacts:
     paths:
-      - app/build/outputs/apk/debug/app-debug.apk
+      - $DROID_DIR/app/build/outputs/apk/debug/app-debug.apk
     expire_in: 2 weeks
   only:
     - main
