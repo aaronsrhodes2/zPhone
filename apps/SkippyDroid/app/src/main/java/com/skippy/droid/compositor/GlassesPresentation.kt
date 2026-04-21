@@ -64,12 +64,12 @@ class GlassesPresentation(
                         onSurfaceDestroyed  = { passthrough.detachGlasses() },
                         modifier = Modifier.fillMaxSize()
                     )
-                    // Layer 6: HUD overlays
+                    // Layer 6: HUD overlays — glasses mode strips text, keeps AR cues only
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.TopEnd
                     ) {
-                        Compositor(modules, contextEngine)
+                        Compositor(modules, contextEngine, isGlasses = true)
                     }
                 }
             }

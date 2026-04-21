@@ -29,7 +29,15 @@ interface FeatureModule {
     /** Called once when the module is disabled. */
     fun onDisable() {}
 
-    /** The Compose content drawn on the overlay layer. Nothing drawn when not enabled. */
+    /** Full overlay drawn on the phone screen — text, panels, arrows, everything. */
     @Composable
     fun Overlay()
+
+    /**
+     * Stripped overlay drawn on the glasses display.
+     * Default: identical to [Overlay]. Override to show only what makes sense as an
+     * AR cue (e.g. direction dots only — no text panels the Captain already sees on the phone).
+     */
+    @Composable
+    fun GlassesOverlay() { Overlay() }
 }

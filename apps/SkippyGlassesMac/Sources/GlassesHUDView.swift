@@ -3,9 +3,10 @@ import SwiftUI
 /// Full-screen view rendered on the VITURE glasses display.
 ///
 /// Layout (mirrors SkippyDroid's Compositor corner assignments):
-///   TOP-RIGHT  — Clock + Compass heading
-///   TOP-LEFT   — Battery (Mac %)
+///   TOP-RIGHT   — Clock + Compass heading
+///   TOP-LEFT    — Battery (Mac %)
 ///   BOTTOM-LEFT — GPS coordinates
+///   FULL-SCREEN — Direction dots overlay when navigating (glasses-only: no text)
 ///
 /// Background is black — stands in for camera passthrough until the S23 is wired.
 struct GlassesHUDView: View {
@@ -14,6 +15,10 @@ struct GlassesHUDView: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
+
+            // ── Direction dots — drawn behind everything else ──────
+            // Glasses see ONLY the dots (no instruction text — that lives on the phone).
+            DirectionDotsOverlay(nav: hud.navEngine, hud: hud)
 
             // ── TOP-RIGHT: Clock + Compass ─────────────────────────
             VStack(alignment: .trailing, spacing: 2) {
@@ -41,10 +46,85 @@ struct GlassesHUDView: View {
                 .padding(.bottom, 20)
                 .padding(.leading, 20)
             }
+
+            // ── Debug nav trigger — keyboard shortcut only ─────────
+            // ⌘N = start test walk to Johnny's Market, Boulder Creek
+            // ⌘. = cancel navigation
+            // These hidden buttons capture menu-bar keyboard shortcuts.
+            // They are invisible on the glasses display.
+            Color.clear
+                .overlay(
+                    Button("") {
+                        if let loc = hud.currentLocation {
+                            Task {
+                                await hud.navEngine.navigateTo(
+                                    "Johnny's Market Boulder Creek CA",
+                                    mode: .walking,
+                                    from: loc
+                                )
+                            }
+                        }
+                    }
+                    .keyboardShortcut("n", modifiers: .command)
+                    .opacity(0)
+                )
+                .overlay(
+                    Button("") { hud.navEngine.cancel() }
+                        .keyboardShortcut(".", modifiers: .command)
+                        .opacity(0)
+                )
         }
-        .onAppear  { hud.start() }
+        .onAppear   { hud.start() }
         .onDisappear { hud.stop() }
         .preferredColorScheme(.dark)
+    }
+}
+
+// MARK: - Direction dots overlay (glasses — no text)
+
+private struct DirectionDotsOverlay: View {
+    let nav: MacNavigationEngine
+    let hud: HUDViewModel
+
+    var body: some View {
+        if nav.isNavigating,
+           let step = nav.state?.currentStep,
+           let loc  = hud.currentLocation
+        {
+            let relBearing = MacNavigationEngine.relativeBearing(
+                from: loc,
+                endLat: step.endLat,
+                endLng: step.endLng,
+                // Mac has no compass — heading 0 = north. Dots point to absolute bearing.
+                // On S23 with real compass the heading updates and dots sweep as you turn.
+                headingDeg: max(hud.headingDegrees, 0)
+            )
+
+            Canvas { ctx, size in
+                let rad = relBearing * .pi / 180
+                let dx  =  sin(rad)
+                let dy  = -cos(rad)   // negative: y grows downward in screen space
+
+                let originX = size.width  / 2
+                let originY = size.height
+
+                let dotCount = 8
+                for i in 0..<dotCount {
+                    let t     = Double(i) / Double(dotCount - 1)
+                    let dist  = Double(50 + i * i * 14)    // quadratic spacing = perspective
+                    let x     = originX + dx * dist
+                    let y     = originY + dy * dist
+                    let r     = 24 - 18 * t                // shrinks with distance
+                    let alpha = 0.92 - 0.74 * t            // fades with distance
+
+                    ctx.fill(
+                        Path(ellipseIn: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)),
+                        with: .color(Color(red: 0, green: 0.67, blue: 1).opacity(alpha))
+                    )
+                }
+            }
+            .allowsHitTesting(false)
+        }
     }
 }
 

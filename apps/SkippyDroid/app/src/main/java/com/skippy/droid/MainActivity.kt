@@ -2,6 +2,8 @@ package com.skippy.droid
 
 import android.hardware.display.DisplayManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -186,13 +188,16 @@ class MainActivity : ComponentActivity() {
     private val displayListener = object : DisplayManager.DisplayListener {
 
         override fun onDisplayAdded(displayId: Int) {
-            val display = displayManager.getDisplay(displayId) ?: return
-            val isPresentation = displayManager
-                .getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
-                .any { it.displayId == displayId }
-            if (isPresentation) {
-                runOnUiThread { showGlasses(display) }
-            }
+            // DisplayManager may not have finished categorizing the new display yet,
+            // so we defer the PRESENTATION check by 300 ms to avoid a race.
+            Handler(Looper.getMainLooper()).postDelayed({
+                val display = displayManager.getDisplay(displayId) ?: return@postDelayed
+                val presDisplays = displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
+                Log.d("Skippy", "onDisplayAdded: id=$displayId presCount=${presDisplays.size}")
+                if (presDisplays.any { it.displayId == displayId }) {
+                    showGlasses(display)
+                }
+            }, 300)
         }
 
         override fun onDisplayRemoved(displayId: Int) {

@@ -149,6 +149,26 @@ class NavigationModule(
         }
     }
 
+    // ── Glasses overlay — dots only, no text ─────────────────────────────────
+
+    /**
+     * On the glasses display: only the direction dot trail.
+     * The Captain reads the instruction on the phone; the glasses show where to point.
+     */
+    @Composable
+    override fun GlassesOverlay() {
+        if (!nav.isNavigating) return
+        val state = nav.state ?: return
+        val step  = state.currentStep ?: return
+
+        val loc     = device.location
+        val heading = device.headingDegrees
+        if (loc != null) {
+            val relBearing = relativeBearing(loc, step.endLat, step.endLng, heading)
+            DirectionDots(relBearing)
+        }
+    }
+
     // ── Direction dots ────────────────────────────────────────────────────────
 
     /**

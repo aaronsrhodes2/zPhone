@@ -20,10 +20,14 @@ final class HUDViewModel: NSObject, CLLocationManagerDelegate {
     var latitude: Double = 0
     var longitude: Double = 0
     var locationAccuracy: Double = -1   // negative = unavailable
+    var currentLocation: CLLocation? = nil   // used by MacNavigationEngine for step tracking
 
     // Battery
     var batteryPercent: Int? = nil
     var batteryCharging: Bool = true
+
+    // Navigation
+    let navEngine = MacNavigationEngine()
 
     private let location = CLLocationManager()
     private var timer: Timer?
@@ -66,8 +70,9 @@ final class HUDViewModel: NSObject, CLLocationManagerDelegate {
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let loc = locations.last else { return }
-        latitude = loc.coordinate.latitude
-        longitude = loc.coordinate.longitude
+        currentLocation  = loc
+        latitude         = loc.coordinate.latitude
+        longitude        = loc.coordinate.longitude
         locationAccuracy = loc.horizontalAccuracy
     }
 
