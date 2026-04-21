@@ -5,45 +5,49 @@ import android.os.Bundle
 import android.view.Display
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.skippy.droid.layers.CameraPassthrough
 import com.skippy.droid.layers.FeatureModule
+import com.skippy.droid.layers.PassthroughCamera
 
 /**
- * Layer 6 — glasses-side display.
+ * Layer 2 + 6 — glasses-side display.
  *
  * Android routes a secondary [Display] to the VITURE glasses automatically when
- * USB-C DisplayPort Alt Mode is active. This Presentation inflates the full Compositor
- * on that secondary display so the Captain sees HUD overlays inside the glasses.
+ * USB-C DisplayPort Alt Mode is active.  This Presentation fills that display with:
  *
- * Background is black (camera passthrough stand-in). When Layer 2 (Camera2 passthrough)
- * is wired, this class will host the SurfaceView below the Compositor overlays.
+ *   1. Camera passthrough (rear camera → glasses = "see-through")
+ *   2. Compositor HUD overlays on top
  *
- * Lifecycle: created/dismissed by [MainActivity]'s DisplayManager.DisplayListener.
+ * [passthrough] is the shared [PassthroughCamera] owned by MainActivity.  When
+ * this Presentation's TextureView becomes available it calls [PassthroughCamera.attachGlasses],
+ * which closes the phone session and re-opens the camera targeting the glasses display.
+ * On dismiss, [PassthroughCamera.detachGlasses] falls back to the phone surface.
+ *
+ * Lifecycle: created/dismissed by [com.skippy.droid.MainActivity]'s DisplayManager listener.
  */
 class GlassesPresentation(
     private val activity: ComponentActivity,
     display: Display,
-    private val modules: List<FeatureModule>
+    private val modules: List<FeatureModule>,
+    private val passthrough: PassthroughCamera
 ) : Presentation(activity, display) {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Keep the glasses display lit; run fullscreen
+        // Keep the glasses display lit; run edge-to-edge
         window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         // ComposeView inside a Presentation (Dialog subclass) needs the Activity's
-        // lifecycle and saved-state registry injected via ViewTree so that Compose's
-        // internal machinery (LaunchedEffect, remember, etc.) can attach correctly.
+        // lifecycle and saved-state registry injected via ViewTree.
         val composeView = ComposeView(activity).apply {
             setViewTreeLifecycleOwner(activity)
             setViewTreeSavedStateRegistryOwner(activity)
@@ -51,13 +55,20 @@ class GlassesPresentation(
                 ViewCompositionStrategy.DisposeOnDetachedFromWindowOrReleasedFromPool
             )
             setContent {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black),   // replaced by camera feed in Layer 2
-                    contentAlignment = Alignment.TopEnd
-                ) {
-                    Compositor(modules)
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // Layer 2: camera passthrough — rear camera fills the glasses display
+                    CameraPassthrough(
+                        onSurfaceAvailable = { surface -> passthrough.attachGlasses(surface) },
+                        onSurfaceDestroyed  = { passthrough.detachGlasses() },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    // Layer 6: HUD overlays
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.TopEnd
+                    ) {
+                        Compositor(modules)
+                    }
                 }
             }
         }
