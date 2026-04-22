@@ -26,6 +26,8 @@ import com.skippy.droid.BuildConfig
 import com.skippy.droid.compositor.Compositor
 import com.skippy.droid.compositor.GlassesPresentation
 import com.skippy.droid.compositor.HudPalette
+import com.skippy.droid.compositor.passthrough.MockPassthroughView
+import com.skippy.droid.compositor.passthrough.PassthroughHost
 import com.skippy.droid.features.battery.BatteryModule
 import com.skippy.droid.features.clock.ClockModule
 import com.skippy.droid.features.compass.CompassModule
@@ -74,6 +76,17 @@ class MainActivity : ComponentActivity() {
      */
     private lateinit var cmd: CommandDispatcher
 
+    /**
+     * Session 7b — passthrough host. Owns the embedded HTTP server, scene
+     * renderer, frame-stream consumer, and pose publisher. Registered as
+     * a FeatureModule at [HudZone.Viewport] so any mounted view paints
+     * into the 1540×960 center rectangle.
+     */
+    private lateinit var passthroughHost: PassthroughHost
+
+    /** DEBUG-only proto-Star-Map producer (see [MockPassthroughView]). */
+    private var mockView: MockPassthroughView? = null
+
     private lateinit var displayManager: DisplayManager
     private var glassesPresentation: GlassesPresentation? = null
 
@@ -113,6 +126,10 @@ class MainActivity : ComponentActivity() {
         registerIntents(cmd)
         voice.dispatcher = cmd
 
+        // Session 7b — passthrough viewport. Constructed here so the module
+        // list below can include it at HudZone.Viewport.
+        passthroughHost = PassthroughHost(applicationContext, glassesLayer, cmd)
+
         modules = listOf(
             ClockModule(),
             CompassModule(device),
@@ -123,6 +140,8 @@ class MainActivity : ComponentActivity() {
             // Session 7 sidebars — symbology-only, no Text/Image.
             LeftBarModule(contextEngine, voice),
             RightBarModule(this, transport),
+            // Session 7b — Viewport host for mounted passthrough apps.
+            passthroughHost,
         )
 
         // Ask for CAMERA now. If already granted, PassthroughCamera opens as soon as
@@ -381,6 +400,19 @@ class MainActivity : ComponentActivity() {
             voice.start()
         }
 
+        // Session 7b — boot the passthrough host's embedded server.
+        passthroughHost.onEnable()
+
+        // DEBUG builds only: stand up the proto-Star-Map mock producer and
+        // auto-activate it after a brief settle so we can see the frame
+        // lane paint without an external producer.
+        if (BuildConfig.DEBUG) {
+            mockView = MockPassthroughView().also { it.start() }
+            Handler(Looper.getMainLooper()).postDelayed({
+                passthroughHost.activate("mock.starmap")
+            }, 500)
+        }
+
         // Scan for presentation displays here (not onCreate) so Presentation.show()
         // has a live window to render into.
         val presDisplays = displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
@@ -395,6 +427,9 @@ class MainActivity : ComponentActivity() {
         transport.stop()
         contextEngine.stop()
         voice.stop()
+        passthroughHost.onDisable()
+        mockView?.stop()
+        mockView = null
     }
 
     override fun onDestroy() {
