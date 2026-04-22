@@ -1,56 +1,50 @@
 package com.skippy.droid.features.compass
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.skippy.droid.compositor.HudPalette
+import com.skippy.droid.compositor.HudZone
+import com.skippy.droid.compositor.cardinalGlyph
+import com.skippy.droid.compositor.hudFont
+import com.skippy.droid.compositor.hudSp
 import com.skippy.droid.layers.DeviceLayer
 import com.skippy.droid.layers.FeatureModule
 
+/**
+ * Compass — top-center (represents the world outside, per the April 21 2026
+ * layout doctrine). Numeric heading stacked above the cardinal glyph.
+ */
 class CompassModule(private val device: DeviceLayer) : FeatureModule {
     override val id = "compass"
     override var enabled by mutableStateOf(true)
     override val zOrder = 10
+    override val zone = HudZone.TopCenter
 
     @Composable
     override fun Overlay() {
         // Read directly from DeviceLayer — headingDegrees is backed by mutableDoubleStateOf
-        // so Compose will recompose automatically when the sensor updates it.
+        // so Compose recomposes automatically when the sensor updates it.
         val heading = device.headingDegrees
-        Column(
-            horizontalAlignment = Alignment.End,
-            modifier = Modifier.padding(top = 30.dp, end = 12.dp)
-        ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = "${heading.toInt()}°",
-                color = Color.Cyan,
-                fontSize = 14.sp,
-                fontFamily = FontFamily.Monospace,
+                color = HudPalette.Amber,           // numeric metric
+                fontSize = hudSp(1.1f),
+                fontFamily = hudFont,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = cardinal(heading),
-                color = Color.Cyan,
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace
+                text = cardinalGlyph(heading),
+                color = HudPalette.White,           // content label
+                fontSize = hudSp(0.85f),
+                fontFamily = hudFont
             )
         }
-    }
-
-    private fun cardinal(deg: Double): String {
-        val dirs = listOf("N","NNE","NE","ENE","E","ESE","SE","SSE",
-                          "S","SSW","SW","WSW","W","WNW","NW","NNW")
-        return dirs[((deg + 11.25) / 22.5).toInt() % 16]
     }
 }

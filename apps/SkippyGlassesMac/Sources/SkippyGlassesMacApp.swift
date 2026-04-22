@@ -8,7 +8,7 @@ struct SkippyGlassesMacApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var delegate
 
     var body: some Scene {
-        MenuBarExtra("Skippy", systemImage: "eye.fill") {
+        MenuBarExtra("Skippy Glasses", systemImage: "eyeglasses") {
             MenuBarContent()
         }
     }
@@ -65,6 +65,14 @@ private struct MenuBarContent: View {
                 .keyboardShortcut("n", modifiers: .command)
                 .disabled(hud.currentLocation == nil)
             }
+
+            Divider()
+
+            // ── Android dev tools ──────────────────────────────────────────────
+            Button("▶ Start Android Emulator") {
+                EmulatorLauncher.start()
+            }
+            .keyboardShortcut("e", modifiers: .command)
 
             Divider()
 

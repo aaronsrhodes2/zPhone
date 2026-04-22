@@ -17,12 +17,29 @@ import java.util.concurrent.TimeUnit
 /**
  * Layer 0: connectivity to Skippy Tel Network PC over Tailscale.
  * Maintains a health-check loop; degrades gracefully when offline.
+ *
+ * ── Observables ────────────────────────────────────────────────────────────
+ * Two Compose-observable state fields:
+ *   - [pcState]        : UNKNOWN / ONLINE / OFFLINE — coarse reachability.
+ *   - [pingLatencyMs]  : round-trip ms to `/health`, or `null` when offline
+ *                        (used by [com.skippy.droid.compositor.SignalStack]
+ *                        in the right sidebar for the signal glyph, and by
+ *                        the future CommandDispatcher's tier-5 fallback
+ *                        decision — both read the same value).
  */
 class TransportLayer(private val pcBaseUrl: String) {
 
     enum class State { UNKNOWN, ONLINE, OFFLINE }
 
     var pcState: State by mutableStateOf(State.UNKNOWN)
+        private set
+
+    /**
+     * Round-trip latency to PC `/health` in milliseconds, or `null` when the
+     * PC is unreachable. Drives the [com.skippy.droid.compositor.SignalStack]
+     * symbology glyph and the tier-5 fallback routing.
+     */
+    var pingLatencyMs: Long? by mutableStateOf(null)
         private set
 
     private val client = OkHttpClient.Builder()
@@ -36,7 +53,9 @@ class TransportLayer(private val pcBaseUrl: String) {
     fun start() {
         healthJob = scope.launch {
             while (isActive) {
-                pcState = ping()
+                val (state, latency) = pingWithLatency()
+                pcState = state
+                pingLatencyMs = latency
                 delay(10_000)
             }
         }
@@ -47,14 +66,36 @@ class TransportLayer(private val pcBaseUrl: String) {
         healthJob = null
     }
 
-    private fun ping(): State {
+    /**
+     * Convert the latest [pingLatencyMs] to a signal-stack tier in
+     * `[0, 4]`, matching the Session 7 doctrine:
+     *   `< 50 ms`   → 4 bars
+     *   `< 150 ms`  → 3 bars
+     *   `< 400 ms`  → 2 bars
+     *   reachable   → 1 bar
+     *   unreachable → 0 bars
+     */
+    fun signalBars(): Int {
+        val lat = pingLatencyMs ?: return 0
+        return when {
+            lat < 50 -> 4
+            lat < 150 -> 3
+            lat < 400 -> 2
+            else -> 1
+        }
+    }
+
+    private fun pingWithLatency(): Pair<State, Long?> {
+        val start = System.nanoTime()
         return try {
             val request = Request.Builder().url("$pcBaseUrl/health").build()
             client.newCall(request).execute().use { response ->
-                if (response.isSuccessful) State.ONLINE else State.OFFLINE
+                val elapsedMs = (System.nanoTime() - start) / 1_000_000L
+                if (response.isSuccessful) State.ONLINE to elapsedMs
+                else State.OFFLINE to null
             }
         } catch (_: IOException) {
-            State.OFFLINE
+            State.OFFLINE to null
         }
     }
 

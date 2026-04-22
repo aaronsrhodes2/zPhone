@@ -4,21 +4,19 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.skippy.droid.compositor.HudPalette
+import com.skippy.droid.compositor.HudZone
+import com.skippy.droid.compositor.hudFont
+import com.skippy.droid.compositor.hudSp
 import com.skippy.droid.layers.FeatureModule
 import com.skippy.droid.layers.TransportLayer
 import kotlinx.coroutines.delay
@@ -26,8 +24,13 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 
 /**
- * Battery Panel — thin strip showing charge level for every Skippy device.
- * Phone: BatteryManager (self). Glasses + remote nodes: polled from TransportLayer.
+ * Battery Panel — top-right corner, stacked below [ClockModule]. Shows charge
+ * level for every Skippy device, one line each. Phone self via BatteryManager;
+ * glasses + remote nodes via TransportLayer.
+ *
+ * If the list ever grows beyond what fits the TopEnd slot, we paginate (cycle
+ * through groups every 3s) rather than truncate. Two devices fit easily at
+ * default [hudSp]; past that we'll wire the paginator.
  */
 class BatteryModule(
     private val context: Context,
@@ -36,7 +39,10 @@ class BatteryModule(
     override val id = "battery"
     override var enabled by mutableStateOf(true)
     override val requiresNetwork = false  // degrades gracefully when offline
-    override val zOrder = 5
+    // zOrder also controls vertical stacking within a shared zone: lowest → topmost
+    // in the zone's Column. Battery sits below Clock in TopEnd, so it gets the higher value.
+    override val zOrder = 10
+    override val zone = HudZone.TopEnd
 
     data class DeviceBattery(val label: String, val percent: Int?)
 
@@ -50,18 +56,14 @@ class BatteryModule(
                 delay(60_000)
             }
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 6.dp, start = 8.dp, end = 8.dp),
-            horizontalArrangement = Arrangement.End
-        ) {
+        // Pure content — Compositor wraps this in the TopEnd positioning Box.
+        Column(horizontalAlignment = Alignment.End) {
             batteries.forEach { device ->
                 Text(
-                    text = "${device.label}:${formatPct(device.percent)}  ",
+                    text = "${device.label} ${formatPct(device.percent)}",
                     color = batteryColor(device.percent),
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace
+                    fontSize = hudSp(0.85f),
+                    fontFamily = hudFont
                 )
             }
         }
@@ -78,7 +80,6 @@ class BatteryModule(
         list += DeviceBattery("S23", phonePct)
 
         // Remote nodes via TransportLayer — each exposes GET /battery
-        // Returns JSON: {"label":"...", "percent":85} or null when offline
         try {
             val resp = transport.post("/battery/glasses", ByteArray(0).toRequestBody(null))
             if (resp != null) {
@@ -95,10 +96,10 @@ class BatteryModule(
 
     private fun formatPct(pct: Int?) = if (pct != null) "$pct%" else "??"
 
-    private fun batteryColor(pct: Int?) = when {
-        pct == null -> Color.Gray
-        pct >= 50 -> Color.Green
-        pct >= 20 -> Color.Yellow
-        else -> Color.Red
+    private fun batteryColor(pct: Int?): Color = when {
+        pct == null -> HudPalette.DimGreen
+        pct >= 50   -> HudPalette.Green
+        pct >= 20   -> HudPalette.Amber
+        else        -> HudPalette.Red
     }
 }

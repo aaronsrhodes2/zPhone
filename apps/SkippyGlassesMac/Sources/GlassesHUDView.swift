@@ -47,6 +47,26 @@ struct GlassesHUDView: View {
                 .padding(.leading, 20)
             }
 
+            // ── BOTTOM-CENTRE: Live voice transcript (debug) ───────
+            // Shows real-time recognition + last-parsed command so the Captain can
+            // see exactly what the speech recognizer heard.  Remove once voice is stable.
+            VoiceTranscriptView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, 20)
+
+            // ── BOTTOM-RIGHT: Diagnostics panel (Layer 0-1 observability) ────
+            // Shows the end-to-end pipeline: voice → parse → nav → net → dots.
+            // Any broken link is immediately visible here.
+            DiagnosticsPanel()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                .padding(.bottom, 20)
+                .padding(.trailing, 20)
+
+            // ── Navigation fetching indicator ──────────────────────
+            if hud.navEngine.isFetchingRoute {
+                NavFetchingPin()
+            }
+
             // ── Debug nav trigger — keyboard shortcut only ─────────
             // ⌘N = start test walk to Johnny's Market, Boulder Creek
             // ⌘. = cancel navigation
@@ -80,51 +100,120 @@ struct GlassesHUDView: View {
     }
 }
 
-// MARK: - Direction dots overlay (glasses — no text)
+// MARK: - World-anchored navigation overlay
 
+/// Renders GPS-pinned direction dots and a green end-of-trail arrow.
+///
+/// Each dot has a fixed real-world GPS coordinate (set when the route is painted).
+/// The `worldProject` function converts those coordinates to screen positions each
+/// frame using current GPS + compass heading — making the dots appear glued to the
+/// physical ground as the Captain moves and turns.
+///
+/// When Mac has no compass (headingDeg = -1) dots appear going straight up from
+/// their GPS positions, confirming navigation is active.  On S23 + VITURE IMU the
+/// dots will sweep left/right correctly as the Captain's head turns.
 private struct DirectionDotsOverlay: View {
     let nav: MacNavigationEngine
     let hud: HUDViewModel
 
+    /// Real compass when available (Android + VITURE IMU).
+    /// On Mac (no magnetometer) we pretend to face toward the current step endpoint
+    /// so the dots render in front of us rather than behind.
+    private func effectiveHeading(fromLat: Double, fromLng: Double) -> Double {
+        if hud.headingDegrees >= 0 { return hud.headingDegrees }
+        guard let step = nav.state?.currentStep else { return 0 }
+        return MacNavigationEngine.bearing(
+            fromLat: fromLat, fromLng: fromLng,
+            toLat: step.endLat, toLng: step.endLng
+        )
+    }
+
     var body: some View {
-        if nav.isNavigating,
-           let step = nav.state?.currentStep,
-           let loc  = hud.currentLocation
+        if nav.isNavigating, !nav.trail.dots.isEmpty,
+           let loc = hud.currentLocation
         {
-            let relBearing = MacNavigationEngine.relativeBearing(
-                from: loc,
-                endLat: step.endLat,
-                endLng: step.endLng,
-                // Mac has no compass — heading 0 = north. Dots point to absolute bearing.
-                // On S23 with real compass the heading updates and dots sweep as you turn.
-                headingDeg: max(hud.headingDegrees, 0)
-            )
+            let fromLat = loc.coordinate.latitude
+            let fromLng = loc.coordinate.longitude
+            let headingDeg = effectiveHeading(fromLat: fromLat, fromLng: fromLng)
 
             Canvas { ctx, size in
-                let rad = relBearing * .pi / 180
-                let dx  =  sin(rad)
-                let dy  = -cos(rad)   // negative: y grows downward in screen space
+                var lastVisiblePoint: CGPoint? = nil
 
-                let originX = size.width  / 2
-                let originY = size.height
+                for dot in nav.trail.dots {
+                    guard let (pt, scale) = MacNavigationEngine.worldProject(
+                        dotLat: dot.lat, dotLng: dot.lng,
+                        fromLat: fromLat, fromLng: fromLng,
+                        headingDeg: headingDeg,
+                        screenSize: size
+                    ) else { continue }
 
-                let dotCount = 8
-                for i in 0..<dotCount {
-                    let t     = Double(i) / Double(dotCount - 1)
-                    let dist  = Double(50 + i * i * 14)    // quadratic spacing = perspective
-                    let x     = originX + dx * dist
-                    let y     = originY + dy * dist
-                    let r     = 24 - 18 * t                // shrinks with distance
-                    let alpha = 0.92 - 0.74 * t            // fades with distance
+                    // Radius and alpha taper with distance (scale = 1/forward_metres)
+                    let r     = min(max(scale * 55, 6), 30)
+                    let alpha = min(max(scale * 8,  0.2), 0.95)
 
                     ctx.fill(
-                        Path(ellipseIn: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)),
+                        Path(ellipseIn: CGRect(x: pt.x - r, y: pt.y - r,
+                                               width: r * 2, height: r * 2)),
                         with: .color(Color(red: 0, green: 0.67, blue: 1).opacity(alpha))
                     )
+
+                    lastVisiblePoint = pt
+                }
+
+                // ── Green arrow at the end of the trail ──────────────────────
+                // Points toward the step endpoint — indicates the turn direction.
+                if let tip = lastVisiblePoint,
+                   let step = nav.state?.currentStep
+                {
+                    drawArrow(ctx: ctx, at: tip,
+                              towardLat: step.endLat, towardLng: step.endLng,
+                              fromLat: fromLat, fromLng: fromLng,
+                              heading: headingDeg, size: size)
                 }
             }
             .allowsHitTesting(false)
         }
+    }
+
+    /// Draws a filled triangle arrow at `at`, pointing toward the step endpoint.
+    private func drawArrow(
+        ctx: GraphicsContext,
+        at tip: CGPoint,
+        towardLat: Double, towardLng: Double,
+        fromLat: Double, fromLng: Double,
+        heading: Double,
+        size: CGSize
+    ) {
+        // Bearing of the arrow on screen (relative to up = 0°)
+        let dNorth = (towardLat - fromLat) * 111_139
+        let dEast  = (towardLng - fromLng) * 111_139 * cos(fromLat * .pi / 180)
+        let h = heading * .pi / 180
+        let fwd = dNorth * cos(h) + dEast * sin(h)
+        let rgt = -dNorth * sin(h) + dEast * cos(h)
+        let angle = atan2(rgt, fwd)    // screen angle: 0 = up
+
+        let arrowLen: Double = 28
+        let arrowWidth: Double = 14
+
+        // Tip of arrow, then two base corners
+        let tipX = tip.x + sin(angle) * arrowLen
+        let tipY = tip.y - cos(angle) * arrowLen
+        let baseAngle = angle + .pi          // opposite direction
+        let perpAngle = angle + .pi / 2
+        let baseX = tip.x + sin(baseAngle) * (arrowLen * 0.3)
+        let baseY = tip.y - cos(baseAngle) * (arrowLen * 0.3)
+        let lx = baseX + sin(perpAngle) * arrowWidth
+        let ly = baseY - cos(perpAngle) * arrowWidth
+        let rx = baseX - sin(perpAngle) * arrowWidth
+        let ry = baseY + cos(perpAngle) * arrowWidth
+
+        var path = Path()
+        path.move(to: CGPoint(x: tipX, y: tipY))
+        path.addLine(to: CGPoint(x: lx, y: ly))
+        path.addLine(to: CGPoint(x: rx, y: ry))
+        path.closeSubpath()
+
+        ctx.fill(path, with: .color(Color(red: 0.2, green: 1.0, blue: 0.4).opacity(0.90)))
     }
 }
 
@@ -240,6 +329,126 @@ private struct GPSBlock: View {
         let m = Int(mRaw)
         let s = Int((mRaw - Double(m)) * 60)
         return "\(d)°\(String(format: "%02d", m))'\(String(format: "%02d", s))\"\(dir)"
+    }
+}
+
+// MARK: - Voice transcript debug view
+
+/// Live speech recognition display — shows what the recognizer is hearing in real time
+/// and the last-parsed command.  Helps distinguish "mic didn't pick it up" from
+/// "parser missed the phrase" without needing `make mac-logs`.
+///
+/// States:
+///   ◉ listening…        — mic armed, nothing transcribed yet
+///   ∿ live transcript   — recognizer producing partial results as Captain speaks
+///   ✓ heard: …          — silence detected, last-parsed command frozen
+private struct VoiceTranscriptView: View {
+    @State private var voice = VoiceEngine.shared
+
+    var body: some View {
+        let live    = voice.recognizer.currentTranscript
+        let last    = voice.lastHeard
+        let hasLive = !live.isEmpty
+
+        HStack(spacing: 8) {
+            Image(systemName: hasLive ? "waveform" : (last.isEmpty ? "mic.fill" : "checkmark.circle.fill"))
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(hasLive ? Color.white : Color.cyan.opacity(0.8))
+
+            Text(
+                hasLive
+                    ? live
+                    : (last.isEmpty ? "listening…" : "heard: \(last)")
+            )
+            .font(.system(size: 13, weight: hasLive ? .semibold : .regular, design: .monospaced))
+            .foregroundStyle(hasLive ? Color.white : Color.cyan.opacity(0.75))
+            .lineLimit(2)
+            .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
+        .background(Color.black.opacity(0.55))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.cyan.opacity(0.35), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+// MARK: - Diagnostics panel (Layer 0-1 observability)
+
+/// Renders the last ~10 events from `DiagnosticsLog` — voice, nav, net, errors.
+/// Shown bottom-right on the glasses so the Captain can watch the full pipeline
+/// flow end-to-end without opening a terminal.
+///
+/// Color coding:
+///   VOICE — purple  (speech recognition events)
+///   NAV   — yellow  (navigation engine lifecycle)
+///   NET   — green   (network requests / responses)
+///   ERR   — red     (errors at any layer)
+///   SYS   — cyan    (general system events)
+private struct DiagnosticsPanel: View {
+    @State private var diag = DiagnosticsLog.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(diag.events.suffix(10)) { event in
+                HStack(alignment: .top, spacing: 6) {
+                    Text(event.kind.rawValue)
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(color(for: event.kind))
+                        .frame(width: 38, alignment: .leading)
+                    Text(event.message)
+                        .font(.system(size: 9, weight: .regular, design: .monospaced))
+                        .foregroundStyle(Color.white.opacity(0.9))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .frame(maxWidth: 360, alignment: .leading)
+        .background(Color.black.opacity(0.55))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+
+    private func color(for kind: DiagnosticsLog.Kind) -> Color {
+        switch kind {
+        case .voice: return Color(red: 0.7, green: 0.45, blue: 1.0)   // purple
+        case .nav:   return Color.yellow
+        case .net:   return Color.green
+        case .error: return Color.red
+        case .sys:   return Color.cyan
+        }
+    }
+}
+
+// MARK: - Navigation fetching indicator
+
+/// Pulsing map-pin shown in the centre of the glasses display while the
+/// Directions API request is in flight.  Disappears the moment dots appear.
+private struct NavFetchingPin: View {
+    @State private var beating = false
+
+    var body: some View {
+        Image(systemName: "mappin.and.ellipse")
+            .font(.system(size: 64, weight: .bold))
+            .foregroundStyle(Color.cyan)
+            .shadow(color: .cyan.opacity(0.8), radius: beating ? 20 : 6)
+            .scaleEffect(beating ? 1.25 : 1.0)
+            .opacity(beating ? 1.0 : 0.55)
+            .animation(
+                .easeInOut(duration: 0.65).repeatForever(autoreverses: true),
+                value: beating
+            )
+            .onAppear { beating = true }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

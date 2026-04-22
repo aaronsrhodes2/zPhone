@@ -19,10 +19,16 @@
     <!-- Hide from Dock — runs as a menu bar utility -->
     <key>LSUIElement</key>
     <true/>
-    <!-- CoreLocation usage descriptions (macOS) -->
+    <!-- CoreLocation -->
     <key>NSLocationUsageDescription</key>
-    <string>SkippyGlassesMac uses your location to show compass heading and GPS coordinates on the HUD.</string>
+    <string>SkippyGlassesMac uses your location for GPS coordinates and walking navigation on the HUD.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>SkippyGlassesMac uses your location to show compass heading and GPS coordinates on the HUD.</string>
+    <string>SkippyGlassesMac uses your location for GPS coordinates and walking navigation on the HUD.</string>
+    <!-- Microphone — voice commands -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>SkippyGlassesMac listens for voice commands ("navigate to…", "cancel") to control the HUD hands-free.</string>
+    <!-- Speech recognition — on-device transcription via SFSpeechRecognizer -->
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>SkippyGlassesMac uses on-device speech recognition to understand voice commands. No audio is sent to Apple servers.</string>
 </dict>
 </plist>

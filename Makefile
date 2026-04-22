@@ -126,6 +126,61 @@ ifndef IP
 endif
 	adb connect $(IP):5555
 
+droid-shot:    ## Screenshot the phone/emulator screen → /tmp/skippy-droid.png
+	@adb exec-out screencap -p > /tmp/skippy-droid.png && \
+	  echo "Saved /tmp/skippy-droid.png ($$(wc -c < /tmp/skippy-droid.png) bytes)"
+
+droid-shot-glasses: ## Screenshot the simulated glasses display (Overlay #1 in emulator) → /tmp/skippy-droid-glasses.png
+	@adb exec-out screencap -p -d 1 > /tmp/skippy-droid-glasses.png && \
+	  echo "Saved /tmp/skippy-droid-glasses.png ($$(wc -c < /tmp/skippy-droid-glasses.png) bytes)"
+
+# ── SkippyGlassesMac (macOS) ──────────────────────────────────────────────────
+
+MAC_DIR    := apps/SkippyGlassesMac
+MAC_SCHEME := SkippyGlassesMac
+MAC_APP    := $(HOME)/Library/Developer/Xcode/DerivedData/SkippyGlassesMac-depshqecdkhqwkeqqzsbxkcuxxzx/Build/Products/Debug/SkippyGlassesMac.app
+
+mac-build:   ## Build SkippyGlassesMac
+	cd $(MAC_DIR) && xcodebuild -project SkippyGlassesMac.xcodeproj \
+	  -scheme $(MAC_SCHEME) -configuration Debug build \
+	  | grep -E "error:|warning:|BUILD"
+
+mac-run:     ## Build, kill old instance, relaunch SkippyGlassesMac
+	cd $(MAC_DIR) && xcodebuild -project SkippyGlassesMac.xcodeproj \
+	  -scheme $(MAC_SCHEME) -configuration Debug build \
+	  | grep -E "error:|BUILD" && \
+	  pkill -x SkippyGlassesMac 2>/dev/null; sleep 0.5; open "$(MAC_APP)"
+
+mac-watch:   ## Watch Sources/ and auto-rebuild+relaunch on any Swift file save
+	@which fswatch > /dev/null || (echo "Installing fswatch…" && brew install fswatch)
+	@echo "Watching $(MAC_DIR)/Sources — will rebuild on save. Ctrl-C to stop."
+	@fswatch -o $(MAC_DIR)/Sources/ | while read _; do \
+	  echo "── Change detected — rebuilding… ──" && \
+	  cd $(MAC_DIR) && xcodebuild -project SkippyGlassesMac.xcodeproj \
+	    -scheme $(MAC_SCHEME) -configuration Debug build \
+	    2>&1 | grep -E "error:|BUILD" && \
+	  pkill -x SkippyGlassesMac 2>/dev/null; sleep 0.5; open "$(MAC_APP)" && \
+	  echo "── Relaunched ──"; \
+	done
+
+mac-logs:    ## Stream SkippyGlassesMac console output via log
+	log stream --predicate 'process == "SkippyGlassesMac"' --level debug
+
+mac-shot:    ## Screenshot the VITURE glasses display → /tmp/skippy-glasses.png
+	@if [ ! -f /tmp/skippy-glasses-display.id ]; then \
+	  echo "No glasses display ID found. Is SkippyGlassesMac running and are the glasses connected?"; \
+	  echo "Falling back to capturing display 2…"; \
+	  screencapture -x -D 2 /tmp/skippy-glasses.png && \
+	  echo "Saved /tmp/skippy-glasses.png"; \
+	else \
+	  ID=$$(cat /tmp/skippy-glasses-display.id | tr -d '[:space:]'); \
+	  screencapture -x -l$$ID /tmp/skippy-glasses.png && \
+	  echo "Saved /tmp/skippy-glasses.png (display id=$$ID)"; \
+	fi
+
+mac-shot-main: ## Screenshot the Mac main display → /tmp/skippy-main.png
+	@screencapture -x -D 1 /tmp/skippy-main.png && echo "Saved /tmp/skippy-main.png"
+
 # ── Dev setup ─────────────────────────────────────────────────────────────────
 
 init:        ## First-time setup: copy .env.example → .env
@@ -142,5 +197,6 @@ help:        ## Show this help
 .PHONY: up up-fg down restart build rebuild logs logs-ollama logs-flask \
         pull-model list-models rm-model shell-ollama shell-flask \
         ps health mcp-install mcp-run mcp-test init nuke help \
+        mac-build mac-run mac-watch mac-logs \
         droid-build droid-install droid-run droid-stop droid-logs \
         droid-test droid-clean droid-emu droid-adb-connect

@@ -7,7 +7,6 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
@@ -64,13 +63,10 @@ class GlassesPresentation(
                         onSurfaceDestroyed  = { passthrough.detachGlasses() },
                         modifier = Modifier.fillMaxSize()
                     )
-                    // Layer 6: HUD overlays — glasses mode strips text, keeps AR cues only
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.TopEnd
-                    ) {
-                        Compositor(modules, contextEngine, isGlasses = true)
-                    }
+                    // Layer 6: HUD overlays — Compositor places each module into its
+                    // declared HudZone. Do NOT wrap in an outer Box(contentAlignment = …)
+                    // here; that would collapse every module into a single corner.
+                    Compositor(modules, contextEngine, isGlasses = true)
                 }
             }
         }

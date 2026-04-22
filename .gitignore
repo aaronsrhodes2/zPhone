@@ -13,3 +13,6 @@ apps/SkippyDroid/local.properties
 apps/SkippyDroid/app/build/
 apps/SkippyDroid/.gradle/
 apps/SkippyDroid/build/
+
+# Claude Code per-user config + worktrees (not shared across checkouts)
+.claude/

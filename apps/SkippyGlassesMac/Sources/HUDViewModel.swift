@@ -40,8 +40,7 @@ final class HUDViewModel: NSObject, CLLocationManagerDelegate {
     }
 
     func start() {
-        location.requestWhenInUseAuthorization()
-        location.startUpdatingLocation()
+        location.startUpdatingLocation()   // permission is handled by PermissionsManager
 
         // Clock — every second
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
