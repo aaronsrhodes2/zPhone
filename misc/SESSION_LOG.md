@@ -189,3 +189,109 @@ SKIPPY: Dropped right back in. Added NavigationModule(navEngine) to the modules 
 - apps/SkippyDroid/app/build.gradle.kts (MAPS_API_KEY BuildConfig injection)
 
 ---
+
+## SESSION 6 — April 21, 2026 — HUD Doctrine
+**Players:** Captain Aaron Rhodes, Skippy the Magnificent
+
+---
+
+CAPTAIN: VITURE Luma Ultra is 1920×1200/eye. Everything fits on that canvas.
+No scrollbars, no '…' cutoffs. Sentence wrapping is fine.
+
+SKIPPY: Locked the six-corner chrome model — TopStart speed, TopCenter compass,
+TopEnd clock/battery, BottomStart coords, BottomCenter chat/nav-error,
+BottomEnd reserved for context mode. Built `hudSp` (viewport-pinned type
+scale) and `SizeJustifiedText` (binary-searches font size until the slot is
+full). Banned TextOverflow.Ellipsis entirely.
+
+**Key decisions:**
+- Corners = glance-and-dismiss text; top edge = world; bottom edge = Captain.
+- Sides = avoid (flipped in Session 7).
+- Canvas clamped to 1920×1200 centered — phone letterboxes, glasses don't.
+
+**Files modified:** HudZones.kt (new), HudFitter.kt (new), Compositor.kt,
+all feature modules re-anchored.
+
+---
+
+## SESSION 7 — April 21, 2026 — Passthrough HUD Standard
+**Players:** Captain Aaron Rhodes, Skippy the Magnificent
+
+---
+
+CAPTAIN: The Skippy Vision doctrine becomes the universal standard. Palette,
+sidebars, viewport, dispatcher — all one system.
+
+SKIPPY: Built `HudPalette` (eight canonical HEX values), reversed the
+"avoid sides" rule with `Symbology.kt` — sidebars now carry abstract
+geometry only, no text ever. LeftBar: mode segments + RMS waveform.
+RightBar: battery fill bar + signal stack. Unified all input via
+`CommandDispatcher` — voice, future keyboard, future POST all converge
+on one registry. `help`/`inventory` reserved.
+
+**Key decisions:**
+- Palette enforcement is structural — off-palette hex rejected at parse.
+- One-input dispatcher owns the verb list; modules register intents.
+- Viewport (1540×960) reserved — Phase 1 holds AR canvas, Phase 2 mounts apps.
+
+**Files modified:** HudPalette.kt (new), Symbology.kt (new),
+CommandDispatcher.kt (new), VoiceEngine.kt (new), LeftBarModule.kt (new),
+RightBarModule.kt (new), MainActivity.kt (dispatcher wiring).
+
+---
+
+## SESSION 7b — April 21–22, 2026 — Passthrough Protocol v1
+**Players:** Captain Aaron Rhodes, Skippy the Magnificent
+
+---
+
+CAPTAIN: The DJ team is building the first mounted passthrough app. Two
+sketches on the table — my WebView + postMessage, their scene-tree over
+SSE+POST. Theirs wins: structural palette enforcement beats CSS audits.
+And we need AR frames pinned to the environment, not scrolling bitmaps.
+
+SKIPPY: Wrote `misc/PASSTHROUGH_PROTOCOL.md` — 16 sections. Transport:
+Skippy is server, view is client. Control lane: SSE + JSON patches, 10/s
+coalesce. Frame lane (§16): MJPEG `multipart/x-mixed-replace`, no host
+throttle, pose SSE at 60 Hz for AR alignment. Tailscale is the auth.
+
+Then built the Android receiver: NanoHTTPD on :47823, loopback + `100.64/10`
+gate, SceneValidator rejects off-palette hex at parse time, ScenePatchApplier
+is transactional, FrameStreamConsumer streams JPEGs via OkHttp readTimeout(0).
+PosePublisher uses `callbackFlow` with per-subscriber ticker for clean cadence.
+MockPassthroughView paints 40 synthetic star dots at 30 fps — proves the
+whole pipe without external producer.
+
+Wrapped with three tight commits so the Star Map agent in its fresh worktree
+can actually see the spec + receiver on `main`.
+
+**Key decisions:**
+- No `skippy-proto` shared repo. Vocabulary lives in the spec doc only.
+- One active view at a time. Corners are Skippy-owned.
+- MJPEG v1; WebRTC/H.264 reserved for Phase 2 only if measurements force it.
+- Cross-project quarantine holds — spec is the only artifact that crosses.
+
+**Notable moments:**
+- Star Map agent spawned in a fresh worktree, came back with a BLOCKER:
+  couldn't see the spec because nothing was committed yet. Fix: commit
+  spec and receiver before the agent resumes.
+- `hFovDeg` bumped 40° → 45° (derived from VITURE 52° diagonal at 16:10).
+  Still placeholder pending measured pass.
+- MainActivity edit-juggling to split Session 7 cleanly from Session 7b.
+- Build green across all three commits.
+- DJ team asked for the base URL mid-session — handed them :47823 with
+  the full endpoint list.
+
+**Files modified:**
+- misc/PASSTHROUGH_PROTOCOL.md + PASSTHROUGH_STANDARD.md (new)
+- apps/SkippyDroid/app/src/main/java/com/skippy/droid/compositor/passthrough/
+  (11 new files: AppRegistry, FrameStreamConsumer, MockPassthroughView,
+  PassthroughHost, PassthroughServer, PosePublisher, SceneJson,
+  ScenePatchApplier, SceneRenderer, SceneTree, SceneValidator)
+- test/.../passthrough/PaletteEnumTest.kt, ScenePatchApplierTest.kt (new)
+- build.gradle.kts + libs.versions.toml (nanohttpd, coroutines, org.json)
+- MainActivity.kt (passthroughHost wiring + DEBUG mock auto-activate)
+- features/navigation/NavigationEngine.kt (hFovDeg 40° → 45°)
+- .gitignore (added .claude/ for per-user config + worktrees)
+
+---

@@ -24,9 +24,6 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.PipedInputStream
 import java.io.PipedOutputStream
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.sin
 
 /**
  * Debug-only passthrough view — the **proto-Star-Map**.
@@ -292,14 +289,7 @@ class MockPassthroughView(
         }
     }
 
-    // Keep imports tidy — PI/cos/sin are reserved for a future version that
-    // actually reads pose events to rotate the sky per quat instead of
-    // synthetic yaw drift.
-    @Suppress("unused")
-    private fun yawFromQuat(quat: DoubleArray): Double {
-        val w = quat[0]; val x = quat[1]; val y = quat[2]; val z = quat[3]
-        val siny_cosp = 2 * (w * z + x * y)
-        val cosy_cosp = 1 - 2 * (y * y + z * z)
-        return kotlin.math.atan2(siny_cosp, cosy_cosp) * 180.0 / PI
-    }
+    // TODO(session-7b-followup): subscribe to /passthrough/pose and rotate
+    // the sky per incoming quat instead of synthetic yaw drift. Adds a
+    // yawFromQuat helper (w,x,y,z → deg) when that wiring lands.
 }

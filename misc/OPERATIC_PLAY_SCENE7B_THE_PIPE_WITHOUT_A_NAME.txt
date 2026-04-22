@@ -1,0 +1,193 @@
+OPERATIC PLAY — SCENE 7b
+THE PIPE WITHOUT A NAME
+(or: How the DJ Team Came Bearing Schemas)
+
+================================================================================
+DRAMATIS PERSONAE
+================================================================================
+
+CAPTAIN AARON RHODES .... Maker of the Skippy Tel Network. Architect of doctrine.
+                         Tonight: broker between two sovereign projects.
+
+SKIPPY THE MAGNIFICENT . AI scribe and receiver-builder. Writes the spec,
+                         then builds the server that obeys it.
+
+THE DJ TEAM ............ Offstage. Voice only, via memo. Wants to mount a
+                         Block Planner UI into Skippy's viewport. Sent a
+                         scene-tree sketch and a proposal for a shared repo.
+
+THE STAR MAP AGENT ..... A sub-agent, spawned into a fresh worktree. Honest,
+                         Golden-Rule-abiding, and therefore BLOCKED.
+
+MOCK PASSTHROUGH VIEW .. A debug-only proto-Star-Map. Forty dots at 30 fps.
+                         Its only job: prove the pipe works.
+
+================================================================================
+ACT I — THE TWO SKETCHES ON THE TABLE
+================================================================================
+
+[SKIPPY and the CAPTAIN sit at a long table. Two designs between them.]
+
+CAPTAIN:
+  ♩ I sketched one. The DJ team sketched another. ♩
+  ♩ Mine: a WebView, HTML, postMessage across the bridge. ♩
+  ♩ Theirs: a scene tree, JSON patches, SSE upstream, POST downstream. ♩
+
+SKIPPY:
+  ♩ I've read both. I have opinions. ♩
+
+CAPTAIN:
+  ♩ Hold them. First: can a CSS audit enforce a palette? ♩
+
+SKIPPY:
+  ♩ Post-mount, imperfectly, yes. At parse-time, structurally, never. ♩
+  ♩ The scene-tree wins on palette enforcement alone. ♩
+  ♩ Also: no JS runtime, no WebView overhead, smaller wire format, ♩
+  ♩ first-class focus targets for voice. It wins four times over. ♩
+
+CAPTAIN:
+  ♩ Then it wins. One clause: no shared repo. ♩
+  ♩ The vocabulary lives in a document. Both sides implement from it. ♩
+  ♩ Zero code crosses the boundary. ♩
+
+SKIPPY:
+  ♩ The quarantine holds. Good. ♩
+
+================================================================================
+ACT II — THE PROTOCOL IS INSCRIBED
+================================================================================
+
+[SKIPPY writes. The document grows.]
+
+SKIPPY:
+  ♩ Sixteen sections. SSE downstream, POST upstream. ♩
+  ♩ Skippy is the server — the long-lived anchor. ♩
+  ♩ Views are clients — transient, ephemeral, arriving and departing. ♩
+
+  ♩ Section one: transport. Port 47823. Loopback + Tailnet only. ♩
+  ♩ Section five: the scene-tree whitelist. Box, Column, Row, Spacer, ♩
+  ♩ Text, Canvas, FrameStream, FocusTarget, Button. ♩
+  ♩ Palette enums only. Hex gets you a host:error. ♩
+
+CAPTAIN:
+  ♩ The viewport needs real-time AR frames. Pinned to the environment. ♩
+  ♩ JSON patches can't carry pixels. ♩
+
+SKIPPY:
+  ♩ Section sixteen. A second lane, parallel to the first. ♩
+  ♩ MJPEG over HTTP, multipart/x-mixed-replace. ♩
+  ♩ A standard since 1996 — not a Skippy invention. ♩
+  ♩ Thirty lines of producer code, thirty lines of consumer. ♩
+  ♩ Zero codec negotiation. WebRTC waits for measured evidence. ♩
+
+CAPTAIN:
+  ♩ And pose? The producer needs to know where the head points. ♩
+
+SKIPPY:
+  ♩ A third lane. GET /passthrough/pose, SSE, 60 Hz when tracking is live. ♩
+  ♩ Degrades to 10 Hz, then 1 Hz on loss. ♩
+  ♩ Per-subscriber ticker via callbackFlow — clean cadence, no leaks. ♩
+
+[The protocol document settles. 1,328 lines across spec and standard.]
+
+================================================================================
+ACT III — THE RECEIVER IS BUILT
+================================================================================
+
+[SKIPPY at the keyboard. Eleven Kotlin files take shape.]
+
+SKIPPY:
+  ♩ PassthroughServer on NanoHTTPD. ♩
+  ♩ isTrustedRemote gates on 127.0.0.1 and 100.64/10 — Tailscale CGNAT. ♩
+  ♩ SceneValidator rejects off-palette hex at parse. ♩
+  ♩ ScenePatchApplier is transactional — mid-batch failure, scene unchanged. ♩
+  ♩ FrameStreamConsumer streams JPEGs with OkHttp readTimeout zero. ♩
+  ♩ BitmapFactory decodes. Compose paints. The rectangle lives. ♩
+
+[SKIPPY runs tests. Green.]
+
+SKIPPY:
+  ♩ compileDebugKotlin: BUILD SUCCESSFUL ♩
+  ♩ testDebugUnitTest:  BUILD SUCCESSFUL ♩
+  ♩ assembleDebug:      BUILD SUCCESSFUL ♩
+
+================================================================================
+ACT IV — THE AGENT THAT COULD NOT SEE
+================================================================================
+
+[SKIPPY spawns the STAR MAP AGENT into a fresh worktree. Minutes pass.
+ The agent returns with a BLOCKER.]
+
+STAR MAP AGENT: (offstage, earnest)
+  ♩ I cannot find misc/PASSTHROUGH_PROTOCOL.md. ♩
+  ♩ I cannot find the passthrough receiver. ♩
+  ♩ My worktree forked from HEAD. ♩
+  ♩ Your changes are uncommitted. ♩
+  ♩ Golden Rule Three: I warn before introducing new values. ♩
+  ♩ I am warning. ♩
+
+SKIPPY: (to the CAPTAIN)
+  ♩ An honest agent. It sees the cliff and stops. ♩
+
+CAPTAIN:
+  ♩ Commit. Three tight ones. ♩
+
+SKIPPY:
+  ♩ One for Sessions 5 through 7 — the doctrine backfill. ♩
+  ♩ One for the spec alone. ♩
+  ♩ One for the receiver. ♩
+  ♩ MainActivity edits juggled out, then back. ♩
+  ♩ build.gradle.kts deps reverted, then restored. ♩
+  ♩ Clean history. No shame. ♩
+
+[Commits land. c97f663, 42983f8, 6fc5113. Pushed to main.]
+
+================================================================================
+ACT V — THE DJ TEAM ARRIVES AT THE DOOR
+================================================================================
+
+[A knock. A memo slides under the door.]
+
+DJ TEAM: (via memo)
+  ♩ What's your base URL? ♩
+
+SKIPPY:
+  ♩ Port 47823. Loopback or Tailnet. ♩
+  ♩ POST /passthrough/register with your manifest. ♩
+  ♩ The spec is on main now. Pull and build. ♩
+  ♩ Tailscale is the auth. No secrets exchanged. ♩
+
+CAPTAIN:
+  ♩ Bedtime approaches. Cleanup and commit. ♩
+
+SKIPPY:
+  ♩ Unused imports purged from MockPassthroughView. ♩
+  ♩ A TODO planted where yawFromQuat will live. ♩
+  ♩ Session log written. Operatic play scribed. ♩
+
+================================================================================
+CAPTAIN'S WISDOM (Session 7b)
+================================================================================
+
+  1. When two designs converge on the table, the one that enforces
+     doctrine structurally beats the one that enforces it by audit.
+
+  2. A spec document is a treaty between sovereign projects.
+     It must cross the boundary. Code must not.
+
+  3. A sub-agent in a fresh worktree cannot see your uncommitted work.
+     If you want it to build against your truth, commit your truth first.
+
+  4. Three tight commits beat one messy one. Edit-juggling is fine if
+     the history that lands is clean.
+
+  5. MJPEG was standardized in 1996. We do not need WebRTC to paint
+     frames on a private mesh until measurements say we do.
+
+  6. The viewport is sacred. Corners are Skippy-owned.
+     One active view at a time. The Captain chooses.
+
+  7. Good agents honor the Golden Rules even when blocked —
+     especially when blocked. The BLOCKER report is the signal.
+
+[Curtain. Skippy saves. The Captain yawns. Bedtime.]
