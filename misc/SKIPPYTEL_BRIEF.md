@@ -19,11 +19,14 @@ the boundary.
 
 ## 1. What SkippyTel IS (and is NOT)
 
-**IS.** An upstream AI inference service. Stateless HTTP over Tailscale.
-Phone calls PC, PC answers, phone renders. Services wrapped in Docker
-Compose on the Captain's RTX 4070 Ti Super PC. Partially real today:
-Flask API on `:5001`, Ollama on `:11434`, Physics MCP scaffolded in
-`services/physics-mcp/`.
+**IS.** An upstream AI inference service. **REST over Tailscale** from
+the phone's perspective — plain HTTP, JSON bodies, OkHttp on the client
+side. Internally, SkippyTel may host MCP servers (Anthropic's Model
+Context Protocol) to give Claude/Ollama tool access on the PC, but that
+is an implementation detail invisible to the phone. Stateless
+request/response. Services wrapped in Docker Compose on the Captain's
+RTX 4070 Ti Super PC. Partially real today: Flask API on `:5001`,
+Ollama on `:11434`, Physics MCP scaffolded in `services/physics-mcp/`.
 
 **IS NOT.**
 - **Not a passthrough view.** Passthrough apps mount *into* the phone's
@@ -242,22 +245,21 @@ this endpoint only lands if we measure a quality problem.
 
 These are deliberately left unresolved — SkippyTel picks them up.
 
-1. **MCP vs REST naming.** The Captain calls this "the MCP server." If
-   SkippyTel literally implements Anthropic's Model Context Protocol,
-   the phone needs an MCP client, not OkHttp. If SkippyTel is a REST
-   API that *hosts* MCP servers internally for tool use, the phone
-   stays with OkHttp. **The phone currently assumes REST.** Pick a
-   lane and record it.
-2. **Streaming for `/intent/unmatched`.** SSE to the phone so partial
+**Resolved (April 22 2026):** the phone → SkippyTel boundary is REST
+(see §1 and §2). When the Captain says "the MCP server," it means the
+service that *internally* hosts MCP servers for Claude/Ollama tool use.
+The phone stays on OkHttp.
+
+1. **Streaming for `/intent/unmatched`.** SSE to the phone so partial
    LLM tokens render progressively? Or wait for full response? Affects
    perceived latency more than raw TTFT.
-3. **Claude vs Ollama routing.** Who decides which model handles a
+2. **Claude vs Ollama routing.** Who decides which model handles a
    request — the phone (sends `model_hint`), the router (picks per
    intent category), or is it always Ollama first with Claude fallback?
-4. **Face DB enrollment UX.** Manual photo import is the plan. CLI on
+3. **Face DB enrollment UX.** Manual photo import is the plan. CLI on
    the PC? Tiny web UI served from Flask? Does not belong in
    SkippyDroid.
-5. **Audio codec for `/translate/audio`.** S23 can record WAV or AAC;
+4. **Audio codec for `/translate/audio`.** S23 can record WAV or AAC;
    Whisper prefers 16 kHz mono PCM. Who transcodes (phone or PC), and
    at what quality tier.
 
