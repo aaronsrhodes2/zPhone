@@ -54,7 +54,13 @@ final class PermissionsManager: NSObject, CLLocationManagerDelegate {
     // Responds to the user's choice in the system dialog.
     // HUDViewModel has its own CLLocationManager delegate for actual location data;
     // this delegate exists only to close the permission loop if needed.
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {}
+    //
+    // `nonisolated` because CLLocationManagerDelegate declares this as a
+    // non-isolated protocol requirement. Without it, Swift 6's concurrency
+    // checker refuses the main-actor-isolated override (warning today,
+    // hard error under Swift 6 language mode). The body is empty so
+    // there's no actor-hop cost.
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {}
 
     // MARK: - Microphone
 

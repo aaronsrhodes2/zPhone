@@ -68,7 +68,9 @@ health:      ## Check Ollama API health from host
 # ── Physics MCP server (runs locally, not in Docker) ─────────────────────────
 
 mcp-install: ## Install physics-mcp into local venv
-	cd services/physics-mcp && python -m venv .venv && .venv/bin/pip install -e ".[dev]"
+	# Use python3 explicitly — recent macOS releases no longer ship an
+	# unversioned `python` symlink, so `python -m venv` fails on a fresh OS.
+	cd services/physics-mcp && python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 
 mcp-run:     ## Run the physics MCP server locally (stdio mode for Claude Desktop)
 	cd services/physics-mcp && .venv/bin/python -m physics_mcp.server
