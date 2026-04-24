@@ -3,12 +3,14 @@ package com.skippy.droid.compositor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.skippy.droid.layers.ContextEngine
 import com.skippy.droid.layers.FeatureModule
@@ -50,9 +52,23 @@ import com.skippy.droid.layers.FeatureModule
  * glasses mirror the two typically resolve to the same composable, but
  * modules like NavigationModule still distinguish (phone shows error only,
  * glasses shows Canvas).
+ *
+ * [letterboxColor] paints around the clamped canvas when the parent is a
+ * different aspect ratio from the glasses (16:10). The glasses display is
+ * exactly 1920×1200 so no letterbox shows — default stays [HudPalette.Black]
+ * (which is additive-transparent on the glasses). The phone mirror is
+ * typically ~19.5:9 (wider than 16:10), so it passes
+ * [HudPalette.MirrorLetterbox] for a visible blue frame around the glasses
+ * canvas — that way the Captain sees exactly what the glasses see, with no
+ * horizontal stretch at the edges.
  */
 @Composable
-fun Compositor(modules: List<FeatureModule>, context: ContextEngine, isGlasses: Boolean = false) {
+fun Compositor(
+    modules: List<FeatureModule>,
+    context: ContextEngine,
+    isGlasses: Boolean = false,
+    letterboxColor: Color = HudPalette.Black,
+) {
     val mode = context.currentMode   // mutableStateOf — drives recomposition on mode change
 
     val active = modules
@@ -60,22 +76,37 @@ fun Compositor(modules: List<FeatureModule>, context: ContextEngine, isGlasses: 
         .filter { it.activeIn.isEmpty() || mode in it.activeIn }
         .sortedBy { it.zOrder }
 
-    // Outer Box: fills the whole display, paints black behind the clamped
-    // canvas. On a wider/taller phone this gives us the letterbox bars.
+    // Outer Box: fills the whole display and paints the letterbox color
+    // behind the clamped canvas. On the glasses (exactly 1920×1200) the
+    // inner canvas fills the outer box and no letterbox is visible. On the
+    // phone (wider than 16:10) the aspectRatio clamp leaves margins where
+    // this color shows through.
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(HudPalette.Black),
+            .background(letterboxColor),
         contentAlignment = Alignment.Center,
     ) {
         // Inner Box: the canonical 1920×1200 design canvas, centered.
-        // `sizeIn(max=...)` means "no bigger than this"; on smaller parents
-        // it shrinks to fit (with the zone budgets tightening proportionally
-        // via the fitting primitives — hudSp / SizeJustifiedText).
+        //
+        // `aspectRatio(1920/1200)` enforces the glasses' 16:10 shape so the
+        // HUD never stretches horizontally on non-matching parents — critical
+        // for the phone mirror to be a faithful preview of what the Captain
+        // sees through the lenses. `sizeIn(max=…)` caps us at the glasses'
+        // native pixel grid; on smaller parents the box shrinks to fit (the
+        // fitting primitives hudSp / SizeJustifiedText scale zone budgets
+        // proportionally).
+        //
+        // Why no `fillMaxSize()` here: fillMaxSize pins both min and max
+        // constraints to the parent's size, which leaves aspectRatio nothing
+        // to negotiate with. Without it, aspectRatio receives
+        // `min=0, max=parent` and picks the largest 16:10 sub-rectangle that
+        // fits — exactly what we want.
         Box(
             modifier = Modifier
+                .aspectRatio(1920f / 1200f)
                 .sizeIn(maxWidth = 1920.dp, maxHeight = 1200.dp)
-                .fillMaxSize(),
+                .background(HudPalette.Black),
         ) {
             // ── Pass 1: Fullscreen modules (AR canvases, self-placing) ──────
             // These fill the clamped canvas. Within this pass zOrder controls

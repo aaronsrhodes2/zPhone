@@ -60,4 +60,17 @@ object HudPalette {
 
     /** Borders, placeholders, idle outlines. Lighter end of the range. */
     val DimGreenHi = Color(0xFF005500)
+
+    /**
+     * Chrome-only — paints the letterbox bars around the 16:10 glasses canvas
+     * on the phone mirror. The S23's ~2.17:1 aspect is wider than the
+     * glasses' 1.6:1; without this the HUD would stretch horizontally and
+     * no longer match what the Captain sees through the lenses.
+     *
+     * **Never** appears inside the canvas. Not a content color. Exists as a
+     * palette entry purely so we retain the "all color through HudPalette"
+     * choke-point — content stays on Compose-on-black, chrome gets its own
+     * named slot.
+     */
+    val MirrorLetterbox = Color(0xFF0044AA)
 }

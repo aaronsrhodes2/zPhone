@@ -205,12 +205,24 @@ class MainActivity : ComponentActivity() {
             // The phone IS the glasses mirror, always on — every HUD element is now
             // a FeatureModule anchored to a HudZone by the Compositor. No hardcoded
             // pills, no DEBUG chrome cluttering the corners.
+            //
+            // letterboxColor = MirrorLetterbox paints blue bars around the 16:10
+            // glasses canvas on the phone's wider-than-16:10 screen, so what the
+            // Captain sees on the phone is exactly what the glasses render — no
+            // horizontal stretch. The GlassesPresentation keeps the default
+            // (Black = additive-transparent) so the glasses display itself never
+            // shows a letterbox.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(HudPalette.Black)   // Skippy owns the phone screen
+                    .background(HudPalette.MirrorLetterbox)
             ) {
-                Compositor(modules, contextEngine, isGlasses = true)
+                Compositor(
+                    modules,
+                    contextEngine,
+                    isGlasses = true,
+                    letterboxColor = HudPalette.MirrorLetterbox,
+                )
             }
         }
     }
