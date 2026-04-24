@@ -4,6 +4,17 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!--
+      Package visibility (Android 11+). SkippyChat resolves SkippyDroid's
+      launch intent when the Captain rotates to landscape — see the
+      rotation-handoff block in MainActivity.kt. Without this declaration
+      `packageManager.getLaunchIntentForPackage("com.skippy.droid")` returns
+      null even when SkippyDroid is installed.
+    -->
+    <queries>
+        <package android:name="com.skippy.droid" />
+    </queries>
+
     <application
         android:allowBackup="false"
         android:icon="@drawable/ic_launcher"
@@ -14,10 +25,20 @@
         android:theme="@style/Theme.SkippyChat"
         tools:targetApi="31">
 
+        <!--
+          Orientation is `sensor` rather than `portrait` so rotating the
+          phone to landscape is caught by `onConfigurationChanged` and used
+          as the signal to hand off to SkippyDroid (glasses mirror).
+
+          `launchMode=singleTask` so SkippyDroid's reverse handoff brings
+          the existing SkippyChat task back to front — scrollback stays
+          intact across rotations rather than being rebuilt from nothing.
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:screenOrientation="portrait"
+            android:screenOrientation="sensor"
+            android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>

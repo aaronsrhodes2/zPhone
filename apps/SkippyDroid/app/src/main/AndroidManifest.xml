@@ -13,6 +13,17 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
+    <!--
+      Package visibility (Android 11+). SkippyDroid resolves SkippyChat's
+      launch intent when the Captain rotates to portrait — see the
+      rotation-handoff block in MainActivity.kt. Without this declaration
+      `packageManager.getLaunchIntentForPackage("com.skippy.chat")` returns
+      null even when SkippyChat is installed.
+    -->
+    <queries>
+        <package android:name="com.skippy.chat" />
+    </queries>
+
     <application
         android:allowBackup="false"
         android:icon="@drawable/ic_launcher"
@@ -23,10 +34,24 @@
         android:theme="@style/Theme.SkippyDroid"
         tools:targetApi="31">
 
+        <!--
+          Orientation is `sensor` rather than `landscape` so rotating the
+          phone to portrait is caught by `onConfigurationChanged` and used
+          as the signal to hand off to SkippyChat. HUD content is still
+          16:10 (the Compositor clamps itself); in portrait it would
+          letterbox heavily, but we never render like that because the
+          handoff fires first.
+
+          `launchMode=singleTask` so SkippyChat's reverse handoff brings
+          the existing SkippyDroid task back to front rather than stacking
+          a fresh instance — expensive state (camera, voice, GPS, passthrough
+          server) stays warm across rotations.
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:screenOrientation="landscape"
+            android:screenOrientation="sensor"
+            android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|keyboardHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

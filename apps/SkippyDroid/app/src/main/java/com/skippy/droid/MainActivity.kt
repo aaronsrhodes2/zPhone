@@ -1,5 +1,7 @@
 package com.skippy.droid
 
+import android.content.Intent
+import android.content.res.Configuration
 import android.hardware.display.DisplayManager
 import android.os.Bundle
 import android.os.Handler
@@ -250,6 +252,17 @@ class MainActivity : ComponentActivity() {
                     runOnUiThread {
                         p.dismiss()
                         glassesPresentation = null
+                        // If the Activity is currently backgrounded (Captain
+                        // is in SkippyChat), onStop already ran and skipped
+                        // the engine teardown because glasses were attached.
+                        // Now that the glasses are gone AND we're not the
+                        // foreground app, there's no reason to keep GPS /
+                        // voice / camera / passthrough alive. Drop them.
+                        if (!isFinishing) {
+                            val visible = lifecycle.currentState
+                                .isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+                            if (!visible) stopEnginesIfRunning()
+                        }
                     }
                 }
             }
@@ -516,34 +529,27 @@ class MainActivity : ComponentActivity() {
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
+    //
+    // Engine lifecycle is gated by the `enginesRunning` flag rather than
+    // being bound 1:1 to onStart/onStop. That way the rotation handoff
+    // (landscape → SkippyChat → back to landscape) doesn't tear down and
+    // re-initialize GPS / voice / camera / passthrough on every flip, and
+    // — more importantly — when the VITURE is rendering the HUD on an
+    // external display, the HUD keeps updating even while SkippyChat owns
+    // the phone screen. Captain's doctrine: the glasses are stuck with
+    // their HUD forever; it never goes dark because a different app took
+    // the phone.
+    //
+    // Shutdown paths:
+    //   • onStop with no glasses attached → stop engines (save battery).
+    //   • onStop with glasses attached    → keep engines warm.
+    //   • onDestroy (task killed)         → unconditional full stop.
+
+    private var enginesRunning = false
 
     override fun onStart() {
         super.onStart()
-        device.start()
-        glassesLayer.start()
-        transport.start()
-        contextEngine.start()
-        // Voice only starts if RECORD_AUDIO is already granted; otherwise it starts
-        // from requestMicPermission callback once the Captain grants it.
-        if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
-                == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            voice.start()
-        }
-
-        // Session 7b — boot the passthrough host's embedded server.
-        // Pattern B apps (Star Map, DJ Block Planner) can register; mock
-        // auto-activation is off by Captain's directive — we focus on
-        // Pattern A+C tooling first.
-        passthroughHost.onEnable()
-
-        // Session 11e — debug-only mock producer. Self-registers as
-        // "Mock Star Map" once the host server is up so the ServicesPanel
-        // has something to show immediately. Release builds skip this;
-        // real Mac-side StarMap will replace it via the same /register path.
-        if (BuildConfig.DEBUG && mockPassthrough == null) {
-            mockPassthrough = MockPassthroughView().also { it.start() }
-            Log.i("Skippy", "MockPassthroughView started on :47824")
-        }
+        startEnginesIfNeeded()
 
         // Scan for presentation displays here (not onCreate) so Presentation.show()
         // has a live window to render into.
@@ -554,6 +560,57 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
+        if (glassesPresentation != null) {
+            // VITURE still has a live HUD on the external display.
+            // Freezing the engines here would freeze the HUD data feeds;
+            // the glasses would look like they'd crashed. Keep warm.
+            Log.d("Skippy", "onStop: glasses attached — keeping engines warm")
+            return
+        }
+        stopEnginesIfRunning()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        displayManager.unregisterDisplayListener(displayListener)
+        glassesPresentation?.dismiss()
+        glassesPresentation = null
+        stopEnginesIfRunning()     // make sure we shut down even if onStop skipped it
+        passthrough.detachPhone()
+        sound.stop()
+        teleprompter.close()
+    }
+
+    private fun startEnginesIfNeeded() {
+        if (enginesRunning) return
+        device.start()
+        glassesLayer.start()
+        transport.start()
+        contextEngine.start()
+        // Voice only starts if RECORD_AUDIO is already granted; otherwise
+        // it starts from the requestMicPermission callback once the
+        // Captain grants it.
+        if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            voice.start()
+        }
+
+        // Session 7b — boot the passthrough host's embedded server.
+        passthroughHost.onEnable()
+
+        // Session 11e — debug-only mock producer. Self-registers as
+        // "Mock Star Map" once the host server is up so the ServicesPanel
+        // has something to show immediately. Release builds skip this;
+        // real Mac-side StarMap will replace it via the same /register path.
+        if (BuildConfig.DEBUG && mockPassthrough == null) {
+            mockPassthrough = MockPassthroughView().also { it.start() }
+            Log.i("Skippy", "MockPassthroughView started on :47824")
+        }
+        enginesRunning = true
+    }
+
+    private fun stopEnginesIfRunning() {
+        if (!enginesRunning) return
         device.stop()
         glassesLayer.stop()
         transport.stop()
@@ -562,15 +619,64 @@ class MainActivity : ComponentActivity() {
         mockPassthrough?.stop()
         mockPassthrough = null
         passthroughHost.onDisable()
+        enginesRunning = false
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        displayManager.unregisterDisplayListener(displayListener)
-        glassesPresentation?.dismiss()
-        glassesPresentation = null
-        passthrough.detachPhone()
-        sound.stop()
-        teleprompter.close()
+    // ── Orientation handoff ───────────────────────────────────────────────────
+    //
+    // The Captain switches between the two phone modes purely by rotating the
+    // handset: landscape → this app (glasses mirror), portrait → SkippyChat.
+    // Both manifests declare `screenOrientation="sensor"` + `launchMode=
+    // "singleTask"` + `configChanges` covering orientation, so a rotation
+    // does NOT recreate the activity — it fires `onConfigurationChanged`.
+    //
+    // Handoff strategy: when we detect we're in the "wrong" orientation we
+    // launch the sibling app (which is also singleTask, so its existing
+    // instance — if any — is brought forward) and call `moveTaskToBack(true)`
+    // on ourselves. That preserves ALL of SkippyDroid's expensive warm state
+    // (camera session, VoiceEngine, GPS listener, passthrough server,
+    // teleprompter contents) across mode flips — far cheaper than finish()
+    // + full re-init on every rotation.
+    //
+    // We check on `onResume` (handles both cold-launch-in-portrait and
+    // returning from the background in the wrong orientation) and on
+    // `onConfigurationChanged` (handles live rotation while visible).
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        maybeHandoff(newConfig.orientation)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        maybeHandoff(resources.configuration.orientation)
+    }
+
+    private fun maybeHandoff(orientation: Int) {
+        // SkippyDroid is the landscape mode. Anything else (portrait,
+        // undefined, square) is SkippyChat's turn.
+        if (orientation == Configuration.ORIENTATION_LANDSCAPE) return
+
+        val launch = packageManager.getLaunchIntentForPackage(SKIPPY_CHAT_PKG)
+        if (launch == null) {
+            Log.i("Skippy", "portrait but $SKIPPY_CHAT_PKG not installed; staying in SkippyDroid")
+            return
+        }
+        Log.d("Skippy", "portrait detected → handing off to $SKIPPY_CHAT_PKG")
+        launch.addFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK or
+            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+        )
+        startActivity(launch)
+        // Suppress the rotation animation flash. API 34 introduced
+        // `overrideActivityTransition` but the old call still works
+        // and we don't need a version-gated split for a zero-duration
+        // no-op transition.
+        @Suppress("DEPRECATION")
+        overridePendingTransition(0, 0)
+        moveTaskToBack(true)
+    }
+
+    private companion object {
+        const val SKIPPY_CHAT_PKG = "com.skippy.chat"
     }
 }
