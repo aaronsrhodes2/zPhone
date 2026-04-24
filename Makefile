@@ -81,7 +81,7 @@ mcp-test:    ## Run MCP server tests
 # ── SkippyDroid (Android) ─────────────────────────────────────────────────────
 
 DROID_DIR  := apps/SkippyDroid
-DROID_PKG  := com.skippy.droid
+DROID_PKG  := local.skippy.droid
 ANDROID_HOME ?= $(HOME)/Library/Android/sdk
 ANDROID_SDK_ROOT := $(ANDROID_HOME)
 JAVA_HOME  ?= /opt/homebrew/opt/openjdk@17
@@ -99,9 +99,9 @@ droid-install: ## Build and install APK on connected device or running emulator
 droid-run:     ## Build, install, launch, and stream filtered logs
 	cd $(DROID_DIR) && ./gradlew installDebug && \
 	  adb shell am start -n $(DROID_PKG)/.MainActivity && \
-	  adb logcat -s SkippyDroid:* Skippy:* Skippy.Services:* Skippy.Dispatcher:* \
-	    Skippy.PhraseBiaser:* PassthroughServer:* MockPassthroughView:* \
-	    AndroidRuntime:E *:S
+	  adb logcat -s Local.Skippy:* Local.Skippy.Services:* Local.Skippy.Dispatcher:* \
+	    Local.Skippy.PhraseBiaser:* Local.Skippy.PassthroughServer:* \
+	    Local.Skippy.MockPassthrough:* AndroidRuntime:E *:S
 
 droid-bridge-register: ## Mac 127.0.0.1:47823 -> emulator :47823 (so Mac producers can register with SkippyDroid)
 	@adb forward tcp:47823 tcp:47823 && \
@@ -117,7 +117,7 @@ droid-stop:    ## Force-stop SkippyDroid on device
 	adb shell am force-stop $(DROID_PKG)
 
 droid-logs:    ## Stream logcat filtered to SkippyDroid
-	adb logcat -s SkippyDroid:* AndroidRuntime:E *:S
+	adb logcat -s Local.Skippy:* AndroidRuntime:E *:S
 
 droid-test:    ## Run unit tests
 	cd $(DROID_DIR) && ./gradlew test
@@ -218,7 +218,7 @@ droid-shot-glasses: ## Screenshot the simulated glasses display (Overlay #1 in e
 # ── SkippyChat (Android, Phase 1 standalone) ─────────────────────────────────
 
 CHAT_DIR := apps/SkippyChat
-CHAT_PKG := com.skippy.chat
+CHAT_PKG := local.skippy.chat
 
 chat-build:    ## Build SkippyChat debug APK
 	cd $(CHAT_DIR) && ./gradlew assembleDebug
@@ -229,13 +229,13 @@ chat-install:  ## Build and install SkippyChat on connected device or emulator
 chat-run:      ## Build, install, launch, and stream filtered SkippyChat logs
 	cd $(CHAT_DIR) && ./gradlew installDebug && \
 	  adb shell am start -n $(CHAT_PKG)/.MainActivity && \
-	  adb logcat -s SkippyChat:* Skippy.Chat:* AndroidRuntime:E *:S
+	  adb logcat -s Local.Skippy.Chat:* AndroidRuntime:E *:S
 
 chat-stop:     ## Force-stop SkippyChat on device
 	adb shell am force-stop $(CHAT_PKG)
 
 chat-logs:     ## Stream logcat filtered to SkippyChat
-	adb logcat -s SkippyChat:* Skippy.Chat:* AndroidRuntime:E *:S
+	adb logcat -s Local.Skippy.Chat:* AndroidRuntime:E *:S
 
 chat-test:     ## Run SkippyChat unit tests
 	cd $(CHAT_DIR) && ./gradlew test

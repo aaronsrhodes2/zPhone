@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.skippy.chat"
+    namespace = "local.skippy.chat"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.skippy.chat"
+        applicationId = "local.skippy.chat"
         minSdk = 30         // Android 11 — matches SkippyDroid floor
         targetSdk = 34
         versionCode = 1

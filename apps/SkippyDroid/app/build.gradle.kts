@@ -13,11 +13,11 @@ val localProps = Properties().apply {
 }
 
 android {
-    namespace = "com.skippy.droid"
+    namespace = "local.skippy.droid"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.skippy.droid"
+        applicationId = "local.skippy.droid"
         minSdk = 30         // Android 11 — S23 ships with 12, but 11 is safe minimum
         targetSdk = 34
         versionCode = 1

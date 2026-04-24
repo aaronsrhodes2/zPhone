@@ -17,7 +17,7 @@
       Package visibility (Android 11+). SkippyDroid resolves launch intents
       for sibling Skippy apps and Chrome when the Captain rotates between
       slots — see the rotation-handoff block in MainActivity.kt.
-        - com.skippy.chat: portrait slot (USB at bottom)
+        - local.skippy.chat: portrait slot (USB at bottom)
         - com.android.chrome: third landscape slot (USB on left); falls
           back to ACTION_VIEW http if Chrome is absent, hence the intent
           element below as well so the fallback also resolves.
@@ -27,7 +27,7 @@
       return null even when the targets are installed.
     -->
     <queries>
-        <package android:name="com.skippy.chat" />
+        <package android:name="local.skippy.chat" />
         <package android:name="com.android.chrome" />
         <intent>
             <action android:name="android.intent.action.VIEW" />

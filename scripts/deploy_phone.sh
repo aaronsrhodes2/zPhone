@@ -87,12 +87,12 @@ case "$CMD" in
             skippydroid)
                 APP_DIR="$REPO_ROOT/apps/SkippyDroid"
                 APK="$APP_DIR/app/build/outputs/apk/debug/app-debug.apk"
-                PKG="com.skippy.droid"
+                PKG="local.skippy.droid"
                 ;;
             skippychat)
                 APP_DIR="$REPO_ROOT/apps/SkippyChat"
                 APK="$APP_DIR/app/build/outputs/apk/debug/app-debug.apk"
-                PKG="com.skippy.chat"
+                PKG="local.skippy.chat"
                 ;;
         esac
 
