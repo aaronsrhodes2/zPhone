@@ -144,7 +144,7 @@ the real S23 arrives.
 make droid-build                                       # local build (smoke test)
 make droid-deploy-remote PHONE=100.x.y.z:5555          # build + push HUD over Tailnet
 make chat-deploy-remote  PHONE=100.x.y.z:5555          # build + push Chat over Tailnet
-adb -s 100.x.y.z:5555 logcat -s Skippy:* Skippy.Chat:* AndroidRuntime:E *:S
+adb -s 100.x.y.z:5555 logcat -s 'Local.Skippy:*' 'Local.Skippy.Chat:*' AndroidRuntime:E *:S
 ```
 
 Both `*-deploy-remote` targets shell out to `scripts/deploy_phone.sh`, which
@@ -167,7 +167,7 @@ adb connect $phone
 adb -s $phone install -r apps/SkippyDroid/app/build/outputs/apk/debug/app-debug.apk
 
 # tail logs
-adb -s $phone logcat -s Skippy:* AndroidRuntime:E *:S
+adb -s $phone logcat -s 'Local.Skippy:*' 'Local.Skippy.Chat:*' AndroidRuntime:E *:S
 ```
 
 The Makefile + bash path is the canonical one — keep it green. PowerShell
@@ -235,7 +235,7 @@ when the AVD is booted.
    the gold-standard dry run** — it proves the entire lane the real S23 will
    use, against a target that's already alive on the network.
 5. `make chat-deploy-remote PHONE=100.109.117.8:5555` does the same for Chat.
-6. `adb -s 100.109.117.8:5555 logcat -s Skippy:* Skippy.Chat:*` tails live
+6. `adb -s 100.109.117.8:5555 logcat -s 'Local.Skippy:*' 'Local.Skippy.Chat:*'` tails live
    logs from the Mac emulator, on the PC.
 
 When all six pass on the PC, the Mac is no longer a critical-path build host.
