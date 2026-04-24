@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext HTTP is normally blocked by Android. SkippyTel is an in-mesh
+  service reached over Tailscale; Tailscale IS the auth (see
+  PASSTHROUGH_PROTOCOL.md §14). We allowlist only the SkippyTel hostname
+  and the tailnet CGNAT range, not cleartext globally.
+
+  - skippy-pc                 — MagicDNS name of the inference PC
+  - 100.64.0.0/10             — Tailscale CGNAT range (RFC 6598)
+  - 10.0.2.2                  — Android emulator's loopback to host (dev)
+  - localhost                 — adb reverse port-forward target (dev)
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">skippy-pc</domain>
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <!--
+          aarons-macbook-pro — Captain's Mac MagicDNS hostname (Tailscale).
+          Hosts DJ Music Organizer on :7334 (Session 11e passthrough
+          producer). Added April 23 2026.
+        -->
+        <domain includeSubdomains="true">aarons-macbook-pro</domain>
+        <!--
+          Tailscale hands out CGNAT addresses 100.64.x.x–100.127.x.x.
+          network-security-config has no CIDR support, so if MagicDNS
+          (skippy-pc) is unavailable on a given device, add the specific
+          tailnet IP here as a fallback. Keep additions minimal and
+          remove once MagicDNS works.
+        -->
+    </domain-config>
+</network-security-config>

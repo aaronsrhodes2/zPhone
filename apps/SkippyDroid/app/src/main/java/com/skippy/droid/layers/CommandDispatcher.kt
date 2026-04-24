@@ -195,6 +195,43 @@ class CommandDispatcher {
             }
         }
 
+        // 2b. Fuzzy-biased retry against live inventory.
+        //
+        // The stock Android free-form recognizer routinely mangles
+        // close-but-wrong versions of our keywords. PhraseBiaser slides
+        // an edit-distance window over the transcript, rewrites the
+        // offending span to the registered phrase, and re-runs the
+        // substring scan — so args-extraction (line 186) stays identical
+        // to a clean transcript. Only fires when exactly one phrase wins;
+        // ambiguous inputs fall through to onUnmatched unchanged.
+        val biased = PhraseBiaser.fuzzyMatch(text, intents.flatMap { it.phrases })
+        if (biased != null) {
+            val rewritten = text.replaceRange(biased.originalSpan, biased.correctedPhrase)
+            Log.i(
+                TAG,
+                "[$source] PhraseBiaser: '$text' → '$rewritten' " +
+                "(phrase='${biased.correctedPhrase}' d=${biased.distance})"
+            )
+            for (intent in intents) {
+                for (phrase in intent.phrases) {
+                    val idx = rewritten.indexOf(phrase)
+                    if (idx < 0) continue
+                    val args = rewritten.substring(idx + phrase.length).trim()
+                    lastMatched = intent
+                    try {
+                        intent.handler(args)
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "handler for '${intent.id}' threw: ${t.message}")
+                    }
+                    return DispatchResult(intent, args)
+                }
+            }
+            // Biaser returned a match but post-rewrite substring scan
+            // didn't find it — shouldn't happen if inventory() is stable
+            // across the call. Log and fall through to onUnmatched.
+            Log.w(TAG, "[$source] PhraseBiaser rewrite '$rewritten' didn't re-match; falling through")
+        }
+
         // 3. No match — fire unmatched callback for logging / future MCP escalation.
         Log.v(TAG, "[$source] no match: '$text'")
         onUnmatched?.invoke(text, source)

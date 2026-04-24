@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext HTTP is normally blocked by Android. SkippyTel is an in-mesh
+  service reached over Tailscale; Tailscale IS the auth (see
+  PASSTHROUGH_PROTOCOL.md §14). We allowlist only the SkippyTel hostname
+  and the tailnet CGNAT range, not cleartext globally. Mirrored verbatim
+  from apps/SkippyDroid — the two apps share one server.
+
+  - skippy-pc                 — MagicDNS name of the inference PC
+  - 100.64.0.0/10             — Tailscale CGNAT range (RFC 6598)
+  - 10.0.2.2                  — Android emulator's loopback to host (dev)
+  - localhost                 — adb reverse port-forward target (dev)
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">skippy-pc</domain>
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

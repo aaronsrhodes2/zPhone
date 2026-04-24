@@ -94,10 +94,22 @@ droid-build:   ## Build debug APK
 droid-install: ## Build and install APK on connected device or running emulator
 	cd $(DROID_DIR) && ./gradlew installDebug
 
-droid-run:     ## Build, install, and stream filtered logs
+droid-run:     ## Build, install, launch, and stream filtered logs
 	cd $(DROID_DIR) && ./gradlew installDebug && \
 	  adb shell am start -n $(DROID_PKG)/.MainActivity && \
-	  adb logcat -s SkippyDroid:* AndroidRuntime:E *:S
+	  adb logcat -s SkippyDroid:* Skippy:* Skippy.Services:* Skippy.Dispatcher:* \
+	    Skippy.PhraseBiaser:* PassthroughServer:* MockPassthroughView:* \
+	    AndroidRuntime:E *:S
+
+droid-bridge-register: ## Mac 127.0.0.1:47823 -> emulator :47823 (so Mac producers can register with SkippyDroid)
+	@adb forward tcp:47823 tcp:47823 && \
+	  echo "Mac producers can now POST to http://127.0.0.1:47823/passthrough/register" && \
+	  echo "(host:47823 -> emulator:47823 where SkippyDroid's NanoHTTPD is listening)"
+
+droid-bridge-dj: ## Emulator 127.0.0.1:7334 -> Mac :7334 (so SkippyDroid can reach DJ Organizer's stream/manifest)
+	@adb reverse tcp:7334 tcp:7334 && \
+	  echo "Emulator can now reach DJ Organizer at http://127.0.0.1:7334" && \
+	  echo "(emulator:7334 -> host:7334 where the Mac DJ app is listening)"
 
 droid-stop:    ## Force-stop SkippyDroid on device
 	adb shell am force-stop $(DROID_PKG)
@@ -126,6 +138,35 @@ ifndef IP
 endif
 	adb connect $(IP):5555
 
+# ── Remote deploy over Tailnet ────────────────────────────────────────────
+# On the physical S23 (one-time):
+#   1. Settings → About phone → tap Build number 7× → Developer options unlocked
+#   2. Developer options → Wireless debugging → ON
+#   3. Tap "Pair device with pairing code" — note the IP:port and 6-digit code
+#   4. From this Mac:  adb pair <pair-ip>:<pair-port>   (enter the 6-digit code)
+#   5. Install Tailscale from Play Store; sign in to the tailnet
+#   6. Note the phone's tailnet MagicDNS name (Tailscale app → this device)
+# After that, every update cycle is:
+#   make droid-tailnet HOST=<magicdns-name>        # one adb connect per session
+#   make droid-install                              # builds + installs over Tailnet
+#   make droid-stop && make droid-run               # restart + tail logs
+
+droid-tailnet: ## Connect to phone over Tailnet (usage: make droid-tailnet HOST=<magicdns or 100.x.x.x>)
+ifndef HOST
+	$(error HOST is not set. Usage: make droid-tailnet HOST=skippy-phone (MagicDNS) or HOST=100.x.x.x)
+endif
+	adb connect $(HOST):5555 && \
+	  echo "Connected over Tailnet. ./gradlew installDebug now deploys to $(HOST)."
+
+droid-adb-pair: ## Pair this Mac with the phone (usage: make droid-adb-pair PAIR=IP:PORT CODE=123456)
+ifndef PAIR
+	$(error PAIR is not set. Read IP:PORT from Settings → Dev options → Wireless debugging → Pair device with pairing code)
+endif
+ifndef CODE
+	$(error CODE is not set. 6-digit pairing code from the phone screen)
+endif
+	@echo $(CODE) | adb pair $(PAIR)
+
 droid-shot:    ## Screenshot the phone/emulator screen → /tmp/skippy-droid.png
 	@adb exec-out screencap -p > /tmp/skippy-droid.png && \
 	  echo "Saved /tmp/skippy-droid.png ($$(wc -c < /tmp/skippy-droid.png) bytes)"
@@ -133,6 +174,38 @@ droid-shot:    ## Screenshot the phone/emulator screen → /tmp/skippy-droid.png
 droid-shot-glasses: ## Screenshot the simulated glasses display (Overlay #1 in emulator) → /tmp/skippy-droid-glasses.png
 	@adb exec-out screencap -p -d 1 > /tmp/skippy-droid-glasses.png && \
 	  echo "Saved /tmp/skippy-droid-glasses.png ($$(wc -c < /tmp/skippy-droid-glasses.png) bytes)"
+
+# ── SkippyChat (Android, Phase 1 standalone) ─────────────────────────────────
+
+CHAT_DIR := apps/SkippyChat
+CHAT_PKG := com.skippy.chat
+
+chat-build:    ## Build SkippyChat debug APK
+	cd $(CHAT_DIR) && ./gradlew assembleDebug
+
+chat-install:  ## Build and install SkippyChat on connected device or emulator
+	cd $(CHAT_DIR) && ./gradlew installDebug
+
+chat-run:      ## Build, install, launch, and stream filtered SkippyChat logs
+	cd $(CHAT_DIR) && ./gradlew installDebug && \
+	  adb shell am start -n $(CHAT_PKG)/.MainActivity && \
+	  adb logcat -s SkippyChat:* Skippy.Chat:* AndroidRuntime:E *:S
+
+chat-stop:     ## Force-stop SkippyChat on device
+	adb shell am force-stop $(CHAT_PKG)
+
+chat-logs:     ## Stream logcat filtered to SkippyChat
+	adb logcat -s SkippyChat:* Skippy.Chat:* AndroidRuntime:E *:S
+
+chat-test:     ## Run SkippyChat unit tests
+	cd $(CHAT_DIR) && ./gradlew test
+
+chat-clean:    ## Clean SkippyChat build outputs
+	cd $(CHAT_DIR) && ./gradlew clean
+
+chat-shot:     ## Screenshot SkippyChat → /tmp/skippy-chat.png
+	@adb exec-out screencap -p > /tmp/skippy-chat.png && \
+	  echo "Saved /tmp/skippy-chat.png ($$(wc -c < /tmp/skippy-chat.png) bytes)"
 
 # ── SkippyGlassesMac (macOS) ──────────────────────────────────────────────────
 
@@ -199,4 +272,8 @@ help:        ## Show this help
         ps health mcp-install mcp-run mcp-test init nuke help \
         mac-build mac-run mac-watch mac-logs \
         droid-build droid-install droid-run droid-stop droid-logs \
-        droid-test droid-clean droid-emu droid-adb-connect
+        droid-test droid-clean droid-emu droid-adb-connect \
+        droid-tailnet droid-adb-pair \
+        droid-bridge-register droid-bridge-dj \
+        chat-build chat-install chat-run chat-stop chat-logs \
+        chat-test chat-clean chat-shot

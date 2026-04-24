@@ -13,9 +13,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import com.skippy.droid.BuildConfig
 import com.skippy.droid.compositor.Compositor
 import com.skippy.droid.compositor.GlassesPresentation
 import com.skippy.droid.compositor.HudPalette
+import com.skippy.droid.compositor.passthrough.MockPassthroughView
 import com.skippy.droid.compositor.passthrough.PassthroughHost
 import com.skippy.droid.features.battery.BatteryModule
 import com.skippy.droid.features.clock.ClockModule
@@ -25,6 +27,7 @@ import com.skippy.droid.features.coordinates.CoordinatesModule
 import com.skippy.droid.features.navigation.NavigationEngine
 import com.skippy.droid.features.navigation.NavigationModule
 import com.skippy.droid.features.notifications.NotificationModule
+import com.skippy.droid.features.services.ServicesPanelModule
 import com.skippy.droid.features.sidebars.LeftBarModule
 import com.skippy.droid.features.sidebars.RightBarModule
 import com.skippy.droid.features.speed.SpeedModule
@@ -41,13 +44,16 @@ import com.skippy.droid.layers.SoundLayer
 import com.skippy.droid.layers.TransportLayer
 import com.skippy.droid.layers.VoiceEngine
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
     // Tailscale address of the Skippy Tel Network PC.
-    // Replace with actual hostname once Tailscale is configured.
-    private val pcUrl = "http://skippy-pc:5001"
+    // SkippyTel runs on port 3003 (separate service from the monorepo's
+    // flask-api on 5001). MagicDNS resolves `skippy-pc` inside the tailnet.
+    private val pcUrl = "http://skippy-pc:3003"
 
     private lateinit var device: DeviceLayer
     private lateinit var transport: TransportLayer
@@ -78,6 +84,14 @@ class MainActivity : ComponentActivity() {
      * into the 1540×960 center rectangle.
      */
     private lateinit var passthroughHost: PassthroughHost
+
+    /**
+     * Session 11e — in-process mock passthrough producer (debug builds only).
+     * Self-registers as "Mock Star Map" on [MockPassthroughView.producerPort]
+     * and streams synthetic cyan/amber stars over MJPEG. Kept in a lateinit so
+     * [onStop] can tear it down cleanly.
+     */
+    private var mockPassthrough: MockPassthroughView? = null
 
     /** Session 9 — non-speech per-ear chime primitive (confirm / error / notify). */
     private lateinit var sound: SoundLayer
@@ -151,6 +165,8 @@ class MainActivity : ComponentActivity() {
             TeleprompterModule(teleprompter),
             // Session 7b — Viewport host for mounted passthrough apps.
             passthroughHost,
+            // Session 11e — TopStart panel listing registered passthrough views.
+            ServicesPanelModule(passthroughHost),
         )
 
         // Ask for CAMERA now. If already granted, PassthroughCamera opens as soon as
@@ -345,6 +361,105 @@ class MainActivity : ComponentActivity() {
             teleprompter.load(script)
         }
 
+        // ── explain (SkippyTel /intent/unmatched) ───────────────────────────
+        // "explain <topic>" / "skippy explain <topic>" — escalate to the PC's
+        // LLM router and render the reply through the existing teleprompter.
+        // The teleprompter's 18-word scrolling window handles multi-paragraph
+        // replies without ellipsis or scrollbars; voice verbs "prompt pause",
+        // "prompt faster", etc. already control it. Empty topic → no-op.
+        d.register(
+            id          = "explain",
+            phrases     = listOf("skippy explain ", "explain "),
+            description = "Ask SkippyTel's LLM to explain a topic; reply lands in the teleprompter",
+        ) { topic ->
+            val query = topic.trim()
+            if (query.isEmpty()) {
+                Log.w("Skippy", "explain with empty topic")
+                sound.error()
+                return@register
+            }
+            // Confirm chime the moment we accept the command — the Captain
+            // hears "I heard you, I'm thinking" even while the LLM chews on
+            // it. The teleprompter loads when (and only if) a reply arrives.
+            sound.confirm()
+            Log.d("Skippy", "explain: '$query'")
+            lifecycleScope.launch {
+                val reply = withContext(Dispatchers.IO) {
+                    transport.postIntentUnmatched(
+                        text    = query,
+                        source  = "voice",
+                        context = mapOf("mode" to contextEngine.currentMode.name.lowercase()),
+                    )
+                }
+                if (reply == null) {
+                    Log.w("Skippy", "explain: no reply (offline / timeout / malformed)")
+                    sound.error()
+                    return@launch
+                }
+                Log.d("Skippy", "explain: ${reply.reply.length} chars, tier=${reply.tier}")
+                teleprompter.load(reply.reply)
+            }
+        }
+
+        // ── services.list / services.open (Session 11e) ─────────────────────
+        // Enumerate currently-registered passthrough views, or activate one
+        // by (fuzzy-tolerated) name. The list is a live read of the registry
+        // so newly-registered Mac producers (DJ Organizer, Star Map) are
+        // immediately addressable without re-registering voice intents.
+        d.register(
+            id          = "services.list",
+            phrases     = listOf(
+                "show services", "list services",
+                "available apps", "what apps", "what services",
+            ),
+            description = "Enumerate registered passthrough views",
+        ) {
+            val views = passthroughHost.registry.list()
+            val active = passthroughHost.registry.active?.view?.id
+            if (views.isEmpty()) {
+                Log.i("Skippy.Services", "no services registered")
+            } else {
+                val lines = views.joinToString("\n") { v ->
+                    val mark = if (v.id == active) "▸" else " "
+                    "  $mark ${v.name} (${v.id})"
+                }
+                Log.i("Skippy.Services", "registered services (${views.size}):\n$lines")
+            }
+            sound.confirm()
+        }
+
+        d.register(
+            id          = "services.open",
+            phrases     = listOf("open ", "launch ", "mount "),
+            description = "Mount a registered passthrough view by name",
+        ) { tail ->
+            val query = tail.trim().lowercase()
+            if (query.isEmpty()) {
+                Log.w("Skippy.Services", "open with empty name")
+                sound.error()
+                return@register
+            }
+            val views = passthroughHost.registry.list()
+            // 1. Exact-id or exact-lowercased-name.
+            var match = views.firstOrNull { it.id == query || it.name.lowercase() == query }
+            // 2. Substring on name (either direction) — handles "star map"
+            //    matching "Mock Star Map" and "mock star map" matching "Star Map".
+            if (match == null) {
+                match = views.firstOrNull { v ->
+                    val lname = v.name.lowercase()
+                    lname.contains(query) || query.contains(lname)
+                }
+            }
+            if (match == null) {
+                Log.w("Skippy.Services", "no service matching '$query' in ${views.map { it.name }}")
+                sound.error()
+                return@register
+            }
+            Log.i("Skippy.Services", "activate '${match.name}' (${match.id}) for query '$query'")
+            passthroughHost.activate(match.id)
+            sound.confirm()
+        }
+
         // ── inventory / help ────────────────────────────────────────────────
         // The dispatcher owns the reserved verbs; we just observe the request.
         // Phase 1: log the live verb set so the Captain sees it in adb logcat.
@@ -409,6 +524,15 @@ class MainActivity : ComponentActivity() {
         // Pattern A+C tooling first.
         passthroughHost.onEnable()
 
+        // Session 11e — debug-only mock producer. Self-registers as
+        // "Mock Star Map" once the host server is up so the ServicesPanel
+        // has something to show immediately. Release builds skip this;
+        // real Mac-side StarMap will replace it via the same /register path.
+        if (BuildConfig.DEBUG && mockPassthrough == null) {
+            mockPassthrough = MockPassthroughView().also { it.start() }
+            Log.i("Skippy", "MockPassthroughView started on :47824")
+        }
+
         // Scan for presentation displays here (not onCreate) so Presentation.show()
         // has a live window to render into.
         val presDisplays = displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
@@ -423,6 +547,8 @@ class MainActivity : ComponentActivity() {
         transport.stop()
         contextEngine.stop()
         voice.stop()
+        mockPassthrough?.stop()
+        mockPassthrough = null
         passthroughHost.onDisable()
     }
 

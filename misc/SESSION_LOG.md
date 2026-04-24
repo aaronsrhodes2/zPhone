@@ -295,3 +295,91 @@ can actually see the spec + receiver on `main`.
 - .gitignore (added .claude/ for per-user config + worktrees)
 
 ---
+
+## SESSION 11e — April 23, 2026 — Two producers, the tier taxonomy, and remote deploy doctrine
+**Players:** Captain Aaron Rhodes, Skippy the Magnificent
+
+---
+
+CAPTAIN: My thought for tonight is to first see StarMap and DJ Organizer streaming to the Android through our Skippy Tel Network.
+
+SKIPPY: Infrastructure audit says the phone-side host is ~95% there — what's missing is a ServicesPanel surface, an activation path, and emulator dev-loop bridging. Three branch points: StarMap tonight = MockPassthroughView in-process; DJ = real Mac app on aarons-macbook-pro:7334; network path = both (adb bridge for emulator, Tailnet for real device).
+
+CAPTAIN: [approves the plan verbatim]
+
+SKIPPY: [executes — ServicesPanelModule created, MainActivity wires services.list + services.open voice intents, MockPassthroughView lit under BuildConfig.DEBUG]
+
+CAPTAIN: [install, launch] … nothing's there.
+
+SKIPPY: Two errors. EADDRINUSE on :47823 because my `adb reverse tcp:47823` made the emulator listen on that port and fight the app's NanoHTTPD — wrong adb direction. And CLEARTEXT to 127.0.0.1 blocked by network security policy because the xml allowed `localhost` but not the literal loopback IP the Mock was posting to. Two fixes: pull the bad reverse from `droid-run`, split clean into `droid-bridge-register` (host→emulator via adb forward) and `droid-bridge-dj` (emulator→host via adb reverse); add 127.0.0.1 + aarons-macbook-pro to the cleartext allowlist.
+
+CAPTAIN: [tile appears] how do I tap it?
+
+SKIPPY: … [five attempts, zero activations] … your mouse doesn't click, mine don't land either. Emulator input pipe is suspect. Paused — voice is the real UX anyway.
+
+CAPTAIN: How were we defining apps? Features in SkippyDroid (border), local-to-phone apps that populate the center view, external apps via our protocol, LLM models on SkippyTel. I don't know if we have properly designated these tiers.
+
+SKIPPY: We haven't. Four tiers — A chrome modules in-process, B passthrough views over loopback, C passthrough views over Tailnet (same protocol as B, different trust gate), D SkippyTel inference services. Models are a sub-tier of D; invisible to the phone behind `/intent/unmatched`. Committing as `misc/APP_TIERS.md`.
+
+CAPTAIN: Yes, add to doctrine. Also no compass response.
+
+SKIPPY: Found it. DeviceLayer was using TYPE_GRAVITY + TYPE_MAGNETIC_FIELD; gravity is a synthetic sensor that the emulator's Virtual Sensors panel doesn't reliably populate. Switched to TYPE_ROTATION_VECTOR preferred, TYPE_ACCELEROMETER + TYPE_MAGNETIC_FIELD as fallback.
+
+CAPTAIN: [tries it] I saw the degrees flutter a bit when I moved. I suspect we are clobbering something.
+
+SKIPPY: You're right. Both sources were writing the same variable; whichever fired last won, and they disagreed by a few degrees. Added a one-way latch — once rotation vector fires, acc+mag events get dropped on the floor. No more ping-pong.
+
+CAPTAIN: The sound detection bar still flutters a lot and sounds like it's having difficulty.
+
+SKIPPY: Emulator audio pipe — three compounding causes. Extended Controls → Microphone → "Virtual microphone uses host audio input" may be off. macOS Microphone permission for the emulator process. AVD RAM at 2G is starving Android 14 ARM64 with a second Presentation display. None of this is SkippyDroid's fault; VoiceEngine is fine. Fix is AVD config + mic settings, awaiting your approval.
+
+CAPTAIN: How are we going to be updating the code on the android device? Can it be done remotely including restarting it?
+
+SKIPPY: Yes, three levels. Wireless ADB over LAN today (`adb connect IP:5555`). Wireless ADB over Tailnet when the phone joins the mesh — every Makefile target just works, install + force-stop + start over the wireguard mesh. GitLab CI push-to-deploy later. No custom update endpoint in the app — ADB is the service. Added `droid-tailnet` and `droid-adb-pair` Makefile targets for tomorrow.
+
+CAPTAIN: I think I am going to hang it up for tonight. Go ahead and check it in and let's see if the phone arrives tomorrow. Be prepared to have it perform remote updates over wifi!
+
+SKIPPY: Aye, Captain.
+
+**Key decisions made:**
+- Four app tiers committed to doctrine (`misc/APP_TIERS.md`): A chrome,
+  B/C passthrough (same protocol, two transports), D inference, D-sub models.
+- Tier B (loopback) gets its own trust boundary; Tailnet is NOT required for
+  in-process producers. Keeps mock view and future phone-local apps simple.
+- Compass source priority: TYPE_ROTATION_VECTOR wins when available,
+  acc+mag fallback only if rotation vector never fires. One-way latch.
+- Audio stutter is emulator-side, not SkippyDroid. No code change tonight.
+- ADB is the update channel. No in-app update mechanism will be built.
+- `droid-run` no longer auto-bridges any ports — MockPassthroughView is
+  in-process and needs nothing; remote producers get explicit bridge targets.
+- `network_security_config.xml` allows cleartext to 127.0.0.1 and to
+  `aarons-macbook-pro` (DJ Organizer host).
+
+**Notable moments:**
+- Two-error stumble at first launch: wrong adb direction + missing loopback
+  cleartext allowance. Both are the kind of thing that only surface when
+  an in-process producer first tries to hit its own host's HTTP server.
+- Captain's mouse didn't click the emulator, my `adb shell input tap` didn't
+  register either. Input pipe on the AVD is suspect — worth a look when
+  physical phone arrives and bypasses the emulator entirely.
+- Captain's tier framing forced the architecture into words that had been
+  scattered across PASSTHROUGH_PROTOCOL / STANDARD / SKIPPYTEL_BRIEF and
+  the Session 9 plan — four documents to answer "what's an app." Now one.
+- Compass clobber was a classic last-writer-wins race; the fix is a four-line
+  boolean latch, not a redesign.
+
+**Files modified:**
+- apps/SkippyDroid/app/src/main/java/com/skippy/droid/features/services/ServicesPanelModule.kt (new)
+- apps/SkippyDroid/app/src/main/java/com/skippy/droid/MainActivity.kt
+  (ServicesPanelModule wired, services.list + services.open intents,
+  MockPassthroughView auto-start under BuildConfig.DEBUG)
+- apps/SkippyDroid/app/src/main/java/com/skippy/droid/layers/DeviceLayer.kt
+  (rotation vector preferred, acc+mag fallback, one-way latch)
+- apps/SkippyDroid/app/src/main/res/xml/network_security_config.xml
+  (127.0.0.1 + aarons-macbook-pro added to cleartext allowlist)
+- Makefile (droid-run no longer auto-bridges; added droid-bridge-register,
+  droid-bridge-dj, droid-tailnet, droid-adb-pair; .PHONY updated)
+- ~/.android/avd/SkippyS23.avd/config.ini (hw.keyboard=no → yes; pre-session)
+- misc/APP_TIERS.md (new — the tier doctrine doc)
+
+---

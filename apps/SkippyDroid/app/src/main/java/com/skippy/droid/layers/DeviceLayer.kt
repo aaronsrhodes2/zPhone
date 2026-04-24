@@ -50,17 +50,56 @@ class DeviceLayer(context: Context) {
         speedMps = if (loc.hasSpeed()) loc.speed else 0f
     }
 
-    private val gravity = FloatArray(3)
+    // Heading is driven by exactly ONE source at a time. Two sources are
+    // registered; whichever proves itself alive first "wins" for the rest
+    // of this process, and the other is ignored.
+    //
+    //  Preferred — TYPE_ROTATION_VECTOR
+    //    Android's fused orientation. Higher rate, pre-calibrated, and the
+    //    emulator's Virtual Sensors panel populates it directly. On a
+    //    healthy device this fires within the first few sensor ticks.
+    //
+    //  Fallback — TYPE_ACCELEROMETER + TYPE_MAGNETIC_FIELD
+    //    Classic compose-your-own-orientation path. Only consulted if
+    //    rotation vector never shows up (unusual, but possible on a minimal
+    //    emulator profile or a device with a dead fusion sensor).
+    //
+    // One-way latch: once rotation vector has fired, `useFallback` is
+    // permanently false and acc+mag events are dropped on the floor. This
+    // prevents the two sources from ping-ponging the heading value on every
+    // tick (they disagree by a few degrees, which reads as flutter).
+    //
+    // Why not just unregister the fallback listeners? We'd need to outlive
+    // onAccuracyChanged races and re-register on stop/restart. Cheaper to
+    // let the events arrive and discard them.
+    private val acceleration = FloatArray(3)
     private val geomagnetic = FloatArray(3)
+    private val rotationVector = FloatArray(5)
+    private var useFallback = true   // flipped to false on first rotation-vector event
     private val sensorListener = object : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent) {
             when (event.sensor.type) {
-                Sensor.TYPE_GRAVITY -> System.arraycopy(event.values, 0, gravity, 0, 3)
+                Sensor.TYPE_ROTATION_VECTOR -> {
+                    useFallback = false
+                    // Values beyond index 3 may be absent on older devices;
+                    // copy only what the event provides.
+                    val n = minOf(event.values.size, rotationVector.size)
+                    System.arraycopy(event.values, 0, rotationVector, 0, n)
+                    val r = FloatArray(9)
+                    SensorManager.getRotationMatrixFromVector(r, rotationVector)
+                    val orientation = FloatArray(3)
+                    SensorManager.getOrientation(r, orientation)
+                    phoneHeadingDegrees = ((Math.toDegrees(orientation[0].toDouble()) + 360) % 360)
+                }
+                Sensor.TYPE_ACCELEROMETER -> {
+                    if (useFallback) System.arraycopy(event.values, 0, acceleration, 0, 3)
+                }
                 Sensor.TYPE_MAGNETIC_FIELD -> {
+                    if (!useFallback) return
                     System.arraycopy(event.values, 0, geomagnetic, 0, 3)
                     val r = FloatArray(9)
                     val i = FloatArray(9)
-                    if (SensorManager.getRotationMatrix(r, i, gravity, geomagnetic)) {
+                    if (SensorManager.getRotationMatrix(r, i, acceleration, geomagnetic)) {
                         val orientation = FloatArray(3)
                         SensorManager.getOrientation(r, orientation)
                         phoneHeadingDegrees = ((Math.toDegrees(orientation[0].toDouble()) + 360) % 360)
@@ -73,11 +112,15 @@ class DeviceLayer(context: Context) {
 
     fun start() {
         startLocationUpdates()
-        sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY)?.let {
-            sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_UI)
-        }
-        sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)?.let {
-            sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_UI)
+        // Register all three — whichever the device/emulator populates wins.
+        listOf(
+            Sensor.TYPE_ROTATION_VECTOR,
+            Sensor.TYPE_ACCELEROMETER,
+            Sensor.TYPE_MAGNETIC_FIELD,
+        ).forEach { type ->
+            sensorManager.getDefaultSensor(type)?.let {
+                sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_UI)
+            }
         }
     }
 

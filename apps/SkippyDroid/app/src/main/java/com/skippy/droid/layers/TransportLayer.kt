@@ -9,8 +9,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -46,6 +49,19 @@ class TransportLayer(private val pcBaseUrl: String) {
         .connectTimeout(3, TimeUnit.SECONDS)
         .readTimeout(5, TimeUnit.SECONDS)
         .build()
+
+    /**
+     * Second OkHttp client for slow inference paths (e.g. `/intent/unmatched`
+     * which routes to Ollama — warm 2s, cold-boot can exceed 10s on the
+     * first request after service start). Same 3s connect timeout so
+     * unreachable hosts still fail fast; only the read side is relaxed.
+     */
+    private val slowClient = OkHttpClient.Builder()
+        .connectTimeout(3, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .build()
+
+    private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
     private val scope = CoroutineScope(Dispatchers.IO)
     private var healthJob: Job? = null
@@ -106,6 +122,69 @@ class TransportLayer(private val pcBaseUrl: String) {
             val request = Request.Builder().url("$pcBaseUrl$path").post(body).build()
             client.newCall(request).execute().use { it.body?.string() }
         } catch (_: IOException) {
+            null
+        }
+    }
+
+    /**
+     * Parsed response from `POST /intent/unmatched` per SKIPPYTEL_BRIEF.md.
+     * `reply` is the text the phone renders (teleprompter, captions, etc.),
+     * `speak` is the TTS-intended form (may equal `reply` if no separate
+     * voice form exists), `tier` is the routing tag SkippyTel assigns
+     * ("local" = Ollama, "cloud" = Anthropic).
+     */
+    data class IntentReply(
+        val reply: String,
+        val speak: String?,
+        val tier: String?,
+    )
+
+    /**
+     * Escalate an unmatched or "explain" voice command to SkippyTel's
+     * `/intent/unmatched` endpoint. Uses [slowClient] — LLM routing can
+     * run 2s warm, 10s+ cold. Returns null on any failure (offline,
+     * timeout, non-200, malformed body); callers render no response.
+     *
+     * Blocking — must be called from a coroutine on [Dispatchers.IO]
+     * or equivalent. The phone-side intent handlers in MainActivity
+     * wrap this in `lifecycleScope.launch(Dispatchers.IO) { ... }`.
+     */
+    fun postIntentUnmatched(
+        text: String,
+        source: String = "voice",
+        context: Map<String, Any> = emptyMap(),
+    ): IntentReply? {
+        if (pcState != State.ONLINE) return null
+
+        val payload = JSONObject().apply {
+            put("text", text)
+            put("source", source)
+            if (context.isNotEmpty()) {
+                put("context", JSONObject(context as Map<*, *>))
+            }
+        }
+        val body = payload.toString().toRequestBody(jsonMedia)
+        val request = Request.Builder()
+            .url("$pcBaseUrl/intent/unmatched")
+            .post(body)
+            .build()
+
+        return try {
+            slowClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                val raw = response.body?.string() ?: return null
+                val obj = JSONObject(raw)
+                val reply = obj.optString("reply", "")
+                if (reply.isEmpty()) return null
+                IntentReply(
+                    reply = reply,
+                    speak = obj.optString("speak").takeIf { it.isNotEmpty() },
+                    tier  = obj.optString("tier").takeIf { it.isNotEmpty() },
+                )
+            }
+        } catch (_: IOException) {
+            null
+        } catch (_: org.json.JSONException) {
             null
         }
     }
