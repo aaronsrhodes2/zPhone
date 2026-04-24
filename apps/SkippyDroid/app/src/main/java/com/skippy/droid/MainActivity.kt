@@ -10,39 +10,34 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.skippy.droid.BuildConfig
 import com.skippy.droid.compositor.Compositor
 import com.skippy.droid.compositor.GlassesPresentation
 import com.skippy.droid.compositor.HudPalette
-import com.skippy.droid.compositor.passthrough.MockPassthroughView
 import com.skippy.droid.compositor.passthrough.PassthroughHost
 import com.skippy.droid.features.battery.BatteryModule
 import com.skippy.droid.features.clock.ClockModule
 import com.skippy.droid.features.compass.CompassModule
+import com.skippy.droid.features.context.ContextModeModule
 import com.skippy.droid.features.coordinates.CoordinatesModule
 import com.skippy.droid.features.navigation.NavigationEngine
 import com.skippy.droid.features.navigation.NavigationModule
+import com.skippy.droid.features.notifications.NotificationModule
 import com.skippy.droid.features.sidebars.LeftBarModule
 import com.skippy.droid.features.sidebars.RightBarModule
 import com.skippy.droid.features.speed.SpeedModule
+import com.skippy.droid.features.teleprompter.TeleprompterEngine
+import com.skippy.droid.features.teleprompter.TeleprompterModule
+import com.skippy.droid.features.voice.VoicePillModule
 import com.skippy.droid.layers.CommandDispatcher
 import com.skippy.droid.layers.ContextEngine
 import com.skippy.droid.layers.DeviceLayer
 import com.skippy.droid.layers.FeatureModule
 import com.skippy.droid.layers.GlassesLayer
 import com.skippy.droid.layers.PassthroughCamera
+import com.skippy.droid.layers.SoundLayer
 import com.skippy.droid.layers.TransportLayer
 import com.skippy.droid.layers.VoiceEngine
 import androidx.lifecycle.lifecycleScope
@@ -84,8 +79,11 @@ class MainActivity : ComponentActivity() {
      */
     private lateinit var passthroughHost: PassthroughHost
 
-    /** DEBUG-only proto-Star-Map producer (see [MockPassthroughView]). */
-    private var mockView: MockPassthroughView? = null
+    /** Session 9 — non-speech per-ear chime primitive (confirm / error / notify). */
+    private lateinit var sound: SoundLayer
+
+    /** Session 9 — voice-controlled teleprompter state. */
+    private lateinit var teleprompter: TeleprompterEngine
 
     private lateinit var displayManager: DisplayManager
     private var glassesPresentation: GlassesPresentation? = null
@@ -119,11 +117,14 @@ class MainActivity : ComponentActivity() {
         contextEngine = ContextEngine(device)
         navEngine     = NavigationEngine(device)
         voice         = VoiceEngine(this)
+        sound         = SoundLayer().also { it.start() }
+        teleprompter  = TeleprompterEngine()
 
         // One-input dispatcher — constructed AFTER engines exist so registered
         // intent handlers can capture them by reference.
         cmd = CommandDispatcher()
         registerIntents(cmd)
+        wireDispatcherChimes(cmd, sound)
         voice.dispatcher = cmd
 
         // Session 7b — passthrough viewport. Constructed here so the module
@@ -140,6 +141,14 @@ class MainActivity : ComponentActivity() {
             // Session 7 sidebars — symbology-only, no Text/Image.
             LeftBarModule(contextEngine, voice),
             RightBarModule(this, transport),
+            // Session 7 reserved BottomEnd slot — context-mode tag.
+            ContextModeModule(contextEngine),
+            // Session 9 — Captain's-own-words pill pulled out of the Activity.
+            VoicePillModule(voice),
+            // Session 9 — transient notification toast (TopCenter, 3.5s fade).
+            NotificationModule(sound),
+            // Session 9 — voice-controlled teleprompter (BottomCenter, hidden until loaded).
+            TeleprompterModule(teleprompter),
             // Session 7b — Viewport host for mounted passthrough apps.
             passthroughHost,
         )
@@ -177,100 +186,15 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             // Phone screen: Skippy has replaced the Android OS experience entirely.
-            // No camera preview, no phone-native overlays — the phone IS the glasses
-            // mirror, always on. Future: a chat prompt at the bottom for voice
-            // conversation. For now: glasses HUD on solid black + dev pills.
-            //
-            // The real camera passthrough is only rendered on the glasses display
-            // (GlassesPresentation). Phone is Skippy-owned space.
-            val scope = rememberCoroutineScope()
-
+            // The phone IS the glasses mirror, always on — every HUD element is now
+            // a FeatureModule anchored to a HudZone by the Compositor. No hardcoded
+            // pills, no DEBUG chrome cluttering the corners.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(HudPalette.Black)   // Skippy owns the phone screen
             ) {
-
-                // Glasses HUD — always on, same compositor the VITURE display paints.
-                // Take glasses off → phone shows exactly what they were showing.
                 Compositor(modules, contextEngine, isGlasses = true)
-
-                // ── Live voice pill (BottomCenter) ───────────────────────────────────
-                // Reads VoiceEngine state directly. Three visual states:
-                //   mic off  → dim "› chat with Skippy…" (perm not yet granted)
-                //   idle     → "◉ listening…" (armed, waiting for speech)
-                //   speaking → bright live transcript (partial results)
-                //   settled  → "heard: <last utterance>" (after silence)
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 20.dp, vertical = 20.dp),
-                    contentAlignment = Alignment.BottomCenter
-                ) {
-                    val live     = voice.partialTranscript
-                    val last     = voice.lastHeard
-                    val hasLive  = live.isNotEmpty()
-                    val pillText = when {
-                        !voice.isListening -> "› chat with Skippy…"
-                        hasLive            -> live
-                        last.isNotEmpty()  -> "heard: $last"
-                        else               -> "◉ listening…"
-                    }
-                    val pillColor = when {
-                        !voice.isListening -> HudPalette.White.copy(alpha = 0.30f)
-                        hasLive            -> HudPalette.White
-                        else               -> HudPalette.Cyan.copy(alpha = 0.75f)
-                    }
-                    Text(
-                        text = pillText,
-                        color = pillColor,
-                        fontSize = 13.sp,
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier
-                            .background(
-                                HudPalette.White.copy(alpha = 0.06f),
-                                RoundedCornerShape(10.dp)
-                            )
-                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                    )
-                }
-
-                // ── Debug NAV button (DEBUG builds only) ─────────────────────────────
-                // Tap to start a test walking route; tap again to cancel.
-                if (BuildConfig.DEBUG) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(start = 10.dp, bottom = 10.dp),
-                        contentAlignment = Alignment.BottomStart
-                    ) {
-                        val isNav = navEngine.isNavigating
-                        Text(
-                            text = if (isNav) "■ STOP NAV" else "▶ TEST NAV",
-                            color = HudPalette.Amber,
-                            fontSize = 11.sp,
-                            fontFamily = FontFamily.Monospace,
-                            modifier = Modifier
-                                .background(
-                                    HudPalette.Black.copy(alpha = 0.60f),
-                                    RoundedCornerShape(4.dp)
-                                )
-                                .padding(horizontal = 10.dp, vertical = 5.dp)
-                                .clickable {
-                                    if (isNav) {
-                                        navEngine.cancel()
-                                    } else {
-                                        scope.launch {
-                                            navEngine.navigateTo(
-                                                destination = "Johnny's Market Boulder Creek CA",
-                                                mode = NavigationEngine.TravelMode.WALKING
-                                            )
-                                        }
-                                    }
-                                }
-                        )
-                    }
-                }
             }
         }
     }
@@ -368,6 +292,59 @@ class MainActivity : ComponentActivity() {
             navEngine.cancel()
         }
 
+        // ── teleprompter ────────────────────────────────────────────────────
+        // "prompt faster" / "prompt slower" match BEFORE "prompt <text>" so
+        // the modifier forms don't get interpreted as new scripts to load.
+        d.register(
+            id          = "teleprompt_faster",
+            phrases     = listOf("prompt faster", "teleprompt faster", "scroll faster"),
+            description = "Speed up the teleprompter scroll rate",
+        ) {
+            teleprompter.faster()
+        }
+        d.register(
+            id          = "teleprompt_slower",
+            phrases     = listOf("prompt slower", "teleprompt slower", "scroll slower"),
+            description = "Slow down the teleprompter scroll rate",
+        ) {
+            teleprompter.slower()
+        }
+        d.register(
+            id          = "teleprompt_pause",
+            phrases     = listOf("prompt pause", "pause prompt", "pause teleprompt"),
+            description = "Pause the teleprompter at the current word",
+        ) {
+            teleprompter.pause()
+        }
+        d.register(
+            id          = "teleprompt_resume",
+            phrases     = listOf("prompt resume", "resume prompt", "resume teleprompt"),
+            description = "Resume teleprompter scrolling",
+        ) {
+            teleprompter.resume()
+        }
+        d.register(
+            id          = "teleprompt_close",
+            phrases     = listOf("prompt close", "close prompt", "close teleprompt"),
+            description = "Close the teleprompter",
+        ) {
+            teleprompter.close()
+        }
+        // "prompt <script text>" — load and auto-scroll. This phrase must be
+        // registered AFTER the modifier variants so the substring matcher
+        // doesn't grab e.g. "prompt faster" as a script reading "faster".
+        d.register(
+            id          = "teleprompt_load",
+            phrases     = listOf("prompt ", "teleprompt "),
+            description = "Load text into the teleprompter and start scrolling",
+        ) { script ->
+            if (script.isEmpty()) {
+                Log.w("Skippy", "teleprompt load with empty script")
+                return@register
+            }
+            teleprompter.load(script)
+        }
+
         // ── inventory / help ────────────────────────────────────────────────
         // The dispatcher owns the reserved verbs; we just observe the request.
         // Phase 1: log the live verb set so the Captain sees it in adb logcat.
@@ -382,6 +359,32 @@ class MainActivity : ComponentActivity() {
         // aren't wired yet. Phase 2 will escalate unmatched text to the PC MCP.
         d.onUnmatched = { text, source ->
             Log.d("Skippy.Dispatcher", "unmatched [$source]: '$text'")
+        }
+    }
+
+    /**
+     * Layer a per-ear chime on top of dispatch events: left-ear error chime
+     * when no intent matched, right-ear confirm chime when one did. Phase 1
+     * wires this purely by observation — we don't change dispatcher behavior,
+     * we just replicate the hook pattern on top of [onInventoryRequest] and
+     * [onUnmatched] plus a small decoration around [CommandDispatcher.register].
+     */
+    private fun wireDispatcherChimes(d: CommandDispatcher, s: SoundLayer) {
+        // Error chime on unmatched — extend the existing callback.
+        val priorUnmatched = d.onUnmatched
+        d.onUnmatched = { text, source ->
+            s.error()
+            priorUnmatched?.invoke(text, source)
+        }
+        // Confirm chime on inventory request (there's no global "matched"
+        // hook yet; individual handlers can call s.confirm() themselves if
+        // they want to ack silently-handled commands). For Phase 1 we leave
+        // per-intent chimes to the handlers — the unmatched chime alone is
+        // enough to tell the Captain "I heard something, but not a verb."
+        val priorInventory = d.onInventoryRequest
+        d.onInventoryRequest = { live ->
+            s.confirm()
+            priorInventory?.invoke(live)
         }
     }
 
@@ -401,17 +404,10 @@ class MainActivity : ComponentActivity() {
         }
 
         // Session 7b — boot the passthrough host's embedded server.
+        // Pattern B apps (Star Map, DJ Block Planner) can register; mock
+        // auto-activation is off by Captain's directive — we focus on
+        // Pattern A+C tooling first.
         passthroughHost.onEnable()
-
-        // DEBUG builds only: stand up the proto-Star-Map mock producer and
-        // auto-activate it after a brief settle so we can see the frame
-        // lane paint without an external producer.
-        if (BuildConfig.DEBUG) {
-            mockView = MockPassthroughView().also { it.start() }
-            Handler(Looper.getMainLooper()).postDelayed({
-                passthroughHost.activate("mock.starmap")
-            }, 500)
-        }
 
         // Scan for presentation displays here (not onCreate) so Presentation.show()
         // has a live window to render into.
@@ -428,8 +424,6 @@ class MainActivity : ComponentActivity() {
         contextEngine.stop()
         voice.stop()
         passthroughHost.onDisable()
-        mockView?.stop()
-        mockView = null
     }
 
     override fun onDestroy() {
@@ -438,5 +432,7 @@ class MainActivity : ComponentActivity() {
         glassesPresentation?.dismiss()
         glassesPresentation = null
         passthrough.detachPhone()
+        sound.stop()
+        teleprompter.close()
     }
 }
