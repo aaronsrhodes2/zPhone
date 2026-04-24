@@ -3,10 +3,12 @@ package com.skippy.droid
 import android.content.Intent
 import android.content.res.Configuration
 import android.hardware.display.DisplayManager
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.Surface
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -672,61 +674,144 @@ class MainActivity : ComponentActivity() {
         enginesRunning = false
     }
 
-    // ── Orientation handoff ───────────────────────────────────────────────────
+    // ── Rotation handoff ──────────────────────────────────────────────────────
     //
-    // The Captain switches between the two phone modes purely by rotating the
-    // handset: landscape → this app (glasses mirror), portrait → SkippyChat.
-    // Both manifests declare `screenOrientation="sensor"` + `launchMode=
-    // "singleTask"` + `configChanges` covering orientation, so a rotation
-    // does NOT recreate the activity — it fires `onConfigurationChanged`.
+    // Captain's doctrine: rotation IS the launcher. Each of the four physical
+    // rotations dispatches to a different surface. The `display.rotation` API
+    // exposes 4 distinct values; `Configuration.orientation` only exposes 2,
+    // which is why this used to flip flop between landscape and portrait only.
     //
-    // Handoff strategy: when we detect we're in the "wrong" orientation we
-    // launch the sibling app (which is also singleTask, so its existing
-    // instance — if any — is brought forward) and call `moveTaskToBack(true)`
-    // on ourselves. That preserves ALL of SkippyDroid's expensive warm state
-    // (camera session, VoiceEngine, GPS listener, passthrough server,
-    // teleprompter contents) across mode flips — far cheaper than finish()
-    // + full re-init on every rotation.
+    // Slot map:
+    //   ROTATION_0          USB at bottom  natural portrait        → SkippyChat
+    //   SLOT_HUD_ROTATION   USB on right   one landscape           → THIS app (stay)
+    //   SLOT_CHROME_ROTATION USB on left   the other landscape     → Chrome
+    //   ROTATION_180        USB at top     upside-down portrait    → Android home
     //
-    // We check on `onResume` (handles both cold-launch-in-portrait and
-    // returning from the background in the wrong orientation) and on
-    // `onConfigurationChanged` (handles live rotation while visible).
+    // SLOT_HUD_ROTATION value below pins which landscape rotation puts USB on
+    // the right — observed empirically from `adb emu rotate` on the SkippyS23
+    // AVD. Flip the two named constants if the test on real hardware
+    // disagrees with the AVD.
+    //
+    // Handoff strategy: when our current rotation isn't our slot we launch
+    // the appropriate target (singleTask sibling, Chrome, or the Android
+    // launcher) and `moveTaskToBack(true)` ourselves. That preserves all of
+    // SkippyDroid's expensive warm state (camera2 session, VoiceEngine, GPS
+    // listener, passthrough server, teleprompter contents) across mode
+    // flips — `finish()` + full re-init on every rotation would be ruinous.
+    //
+    // Caveat for the Chrome and Home slots: those external apps don't honor
+    // our rotation listener. Once Captain is in Chrome, rotating the device
+    // does NOT switch back to a Skippy app — Captain returns manually
+    // (recents, gesture, app icon), and our `onResume` re-runs `maybeHandoff`
+    // to pick up whatever rotation is current at the moment we resume.
+    //
+    // Both manifests declare `screenOrientation="sensor"` +
+    // `launchMode="singleTask"` + `configChanges` covering orientation, so a
+    // rotation does NOT recreate the activity — it fires
+    // `onConfigurationChanged`. We also check on `onResume` for
+    // cold-launch-in-the-wrong-rotation and return-from-background paths.
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        maybeHandoff(newConfig.orientation)
+        maybeHandoff()
     }
 
     override fun onResume() {
         super.onResume()
-        maybeHandoff(resources.configuration.orientation)
+        maybeHandoff()
     }
 
-    private fun maybeHandoff(orientation: Int) {
-        // SkippyDroid is the landscape mode. Anything else (portrait,
-        // undefined, square) is SkippyChat's turn.
-        if (orientation == Configuration.ORIENTATION_LANDSCAPE) return
+    /**
+     * Read the current display rotation and dispatch to the matching slot.
+     * No-op when the current rotation IS our slot.
+     *
+     * `display` (Activity.getDisplay) is API 30+. Both apps target minSdk 30
+     * so it's always non-null at runtime; the `?:` fallback to
+     * `windowManager.defaultDisplay` is paranoia for unusual configurations
+     * (e.g. activity not yet attached to a window — should not happen post-
+     * onCreate but cheap to guard).
+     */
+    @Suppress("DEPRECATION")
+    private fun maybeHandoff() {
+        val rotation = display?.rotation ?: windowManager.defaultDisplay.rotation
+        when (rotation) {
+            SLOT_HUD_ROTATION    -> return                       // we ARE the HUD slot
+            Surface.ROTATION_0   -> launchSibling(SKIPPY_CHAT_PKG, "Chat")
+            SLOT_CHROME_ROTATION -> launchChrome()
+            Surface.ROTATION_180 -> launchHome()
+            else                 -> Log.w("Skippy", "rotation=$rotation has no slot; staying")
+        }
+    }
 
-        val launch = packageManager.getLaunchIntentForPackage(SKIPPY_CHAT_PKG)
+    private fun launchSibling(pkg: String, label: String) {
+        val launch = packageManager.getLaunchIntentForPackage(pkg)
         if (launch == null) {
-            Log.i("Skippy", "portrait but $SKIPPY_CHAT_PKG not installed; staying in SkippyDroid")
+            Log.i("Skippy", "rotation slot wants $pkg ($label) but it's not installed; staying")
             return
         }
-        Log.d("Skippy", "portrait detected → handing off to $SKIPPY_CHAT_PKG")
+        Log.d("Skippy", "rotation → handing off to $pkg ($label)")
         launch.addFlags(
             Intent.FLAG_ACTIVITY_NEW_TASK or
             Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
         )
         startActivity(launch)
-        // Suppress the rotation animation flash. API 34 introduced
-        // `overrideActivityTransition` but the old call still works
-        // and we don't need a version-gated split for a zero-duration
-        // no-op transition.
-        @Suppress("DEPRECATION")
-        overridePendingTransition(0, 0)
+        crossfadeOut()
         moveTaskToBack(true)
+    }
+
+    private fun launchChrome() {
+        // Try real Chrome first (Captain said "Chrome Browser" specifically),
+        // fall back to ACTION_VIEW so on hosts without Chrome installed we
+        // open whatever browser Android picks instead of failing silently.
+        val chrome = packageManager.getLaunchIntentForPackage("com.android.chrome")
+        val intent = chrome ?: Intent(Intent.ACTION_VIEW, Uri.parse("about:blank"))
+        intent.addFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK or
+            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+        )
+        Log.d("Skippy", "rotation → handing off to ${if (chrome != null) "Chrome" else "system browser"}")
+        try {
+            startActivity(intent)
+            crossfadeOut()
+            moveTaskToBack(true)
+        } catch (e: android.content.ActivityNotFoundException) {
+            Log.w("Skippy", "no browser available for Chrome slot; staying", e)
+        }
+    }
+
+    private fun launchHome() {
+        val home = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_HOME)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        Log.d("Skippy", "rotation → handing off to Android home (USB-top slot)")
+        startActivity(home)
+        crossfadeOut()
+        moveTaskToBack(true)
+    }
+
+    /**
+     * Crossfade transition to mask the task swap. Replaces the older
+     * `overridePendingTransition(0, 0)` (instant cut) — the fade takes ~200ms
+     * and is much less jarring as Captain rotates through the slots. API 34
+     * deprecated this in favour of `overrideActivityTransition` but the old
+     * API still works identically; not worth a version-gated split.
+     */
+    @Suppress("DEPRECATION")
+    private fun crossfadeOut() {
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
     }
 
     private companion object {
         const val SKIPPY_CHAT_PKG = "com.skippy.chat"
+
+        // USB-RIGHT (Captain's intent: HUD slot). Observed value from
+        // `adb emu rotate` on the SkippyS23 AVD. The S23's natural orientation
+        // is portrait with USB at the bottom; rotating the device CCW puts USB
+        // on the right and the display compensates by rotating its content
+        // 90° CW — reported as ROTATION_90.
+        const val SLOT_HUD_ROTATION = Surface.ROTATION_90
+
+        // USB-LEFT (Chrome slot). The other landscape rotation.
+        const val SLOT_CHROME_ROTATION = Surface.ROTATION_270
     }
 }

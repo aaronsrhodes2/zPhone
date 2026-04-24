@@ -14,14 +14,29 @@
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
     <!--
-      Package visibility (Android 11+). SkippyDroid resolves SkippyChat's
-      launch intent when the Captain rotates to portrait — see the
-      rotation-handoff block in MainActivity.kt. Without this declaration
-      `packageManager.getLaunchIntentForPackage("com.skippy.chat")` returns
-      null even when SkippyChat is installed.
+      Package visibility (Android 11+). SkippyDroid resolves launch intents
+      for sibling Skippy apps and Chrome when the Captain rotates between
+      slots — see the rotation-handoff block in MainActivity.kt.
+        - com.skippy.chat: portrait slot (USB at bottom)
+        - com.android.chrome: third landscape slot (USB on left); falls
+          back to ACTION_VIEW http if Chrome is absent, hence the intent
+          element below as well so the fallback also resolves.
+        - ACTION_MAIN/CATEGORY_HOME for the upside-down portrait slot is
+          a system broadcast — no <queries> needed for that.
+      Without these declarations getLaunchIntentForPackage / queryIntent
+      return null even when the targets are installed.
     -->
     <queries>
         <package android:name="com.skippy.chat" />
+        <package android:name="com.android.chrome" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
     </queries>
 
     <application

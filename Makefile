@@ -169,6 +169,44 @@ ifndef CODE
 endif
 	@echo $(CODE) | adb pair $(PAIR)
 
+# ── Wireless OTA over Tailnet (PC-handoff prep) ──────────────────────────
+# Session 12 doctrine: any Tailnet host (Mac today, PC tomorrow) can build
+# + push APKs to the phone (or emulator) wirelessly. The lane is plain ADB
+# over plain TCP — Tailscale is the auth, just like SkippyTel.
+#
+# One-time per device:
+#   make phone-pair PAIR=<ip>:<port> CODE=<6-digit>      # real S23 only
+#   (emulator: nothing — `adb connect <ip>:5555` Just Works)
+#
+# Every dev cycle:
+#   make droid-deploy-remote PHONE=<tailnet-ip>:<port>   # build + connect + install
+#   make chat-deploy-remote  PHONE=<tailnet-ip>:<port>
+#
+# The emulator on this Mac is reachable from any Tailnet host as
+#   sdk-gphone64-arm64.<tailnet>.ts.net:5555  (or 100.109.117.8:5555)
+# so the same targets work for the dev-loop dry run today.
+
+phone-pair: ## One-time pair with a real S23 (usage: make phone-pair PAIR=ip:port CODE=123456)
+ifndef PAIR
+	$(error PAIR is not set. Read IP:PORT from Settings → Dev options → Wireless debugging → Pair device with pairing code)
+endif
+ifndef CODE
+	$(error CODE is not set. 6-digit pairing code shown on the phone)
+endif
+	@./scripts/deploy_phone.sh pair $(PAIR) $(CODE)
+
+droid-deploy-remote: ## Build + push SkippyDroid over Tailnet (usage: make droid-deploy-remote PHONE=ip:port)
+ifndef PHONE
+	$(error PHONE is not set. Usage: make droid-deploy-remote PHONE=100.x.x.x:5555)
+endif
+	@./scripts/deploy_phone.sh skippydroid $(PHONE)
+
+chat-deploy-remote: ## Build + push SkippyChat over Tailnet (usage: make chat-deploy-remote PHONE=ip:port)
+ifndef PHONE
+	$(error PHONE is not set. Usage: make chat-deploy-remote PHONE=100.x.x.x:5555)
+endif
+	@./scripts/deploy_phone.sh skippychat $(PHONE)
+
 droid-shot:    ## Screenshot the phone/emulator screen → /tmp/skippy-droid.png
 	@adb exec-out screencap -p > /tmp/skippy-droid.png && \
 	  echo "Saved /tmp/skippy-droid.png ($$(wc -c < /tmp/skippy-droid.png) bytes)"
@@ -278,4 +316,5 @@ help:        ## Show this help
         droid-tailnet droid-adb-pair \
         droid-bridge-register droid-bridge-dj \
         chat-build chat-install chat-run chat-stop chat-logs \
-        chat-test chat-clean chat-shot
+        chat-test chat-clean chat-shot \
+        phone-pair droid-deploy-remote chat-deploy-remote
