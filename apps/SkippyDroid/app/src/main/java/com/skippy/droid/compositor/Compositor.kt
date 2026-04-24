@@ -2,6 +2,7 @@ package com.skippy.droid.compositor
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -61,6 +62,15 @@ import com.skippy.droid.layers.FeatureModule
  * [HudPalette.MirrorLetterbox] for a visible blue frame around the glasses
  * canvas — that way the Captain sees exactly what the glasses see, with no
  * horizontal stretch at the edges.
+ *
+ * [backdrop] fills the 16:10 inner canvas BEHIND every HUD pass — whatever it
+ * paints shows through wherever the modules leave pixels untouched. Default
+ * is solid [HudPalette.Black], which is the right answer for the glasses
+ * (black = transparent on the additive-light display) and for the phone
+ * mirror while the glasses are attached (chrome-only preview). The phone
+ * mirror swaps in a camera-preview backdrop when glasses are NOT attached —
+ * the phone then acts as a stand-in viewfinder, showing what the Captain
+ * would see through the lenses with the HUD composited on top.
  */
 @Composable
 fun Compositor(
@@ -68,6 +78,7 @@ fun Compositor(
     context: ContextEngine,
     isGlasses: Boolean = false,
     letterboxColor: Color = HudPalette.Black,
+    backdrop: @Composable BoxScope.() -> Unit = { DefaultBlackBackdrop() },
 ) {
     val mode = context.currentMode   // mutableStateOf — drives recomposition on mode change
 
@@ -105,9 +116,15 @@ fun Compositor(
         Box(
             modifier = Modifier
                 .aspectRatio(1920f / 1200f)
-                .sizeIn(maxWidth = 1920.dp, maxHeight = 1200.dp)
-                .background(HudPalette.Black),
+                .sizeIn(maxWidth = 1920.dp, maxHeight = 1200.dp),
         ) {
+            // ── Pass 0: Backdrop ────────────────────────────────────────────
+            // Paints beneath every HUD layer. Default is solid black (right
+            // for glasses + phone-mirror-with-glasses-attached). Phone mirror
+            // with glasses detached passes a CameraPassthrough so the phone
+            // becomes a stand-in viewfinder.
+            backdrop()
+
             // ── Pass 1: Fullscreen modules (AR canvases, self-placing) ──────
             // These fill the clamped canvas. Within this pass zOrder controls
             // stack order — higher zOrder paints on top.
@@ -176,3 +193,19 @@ private val CHROME_ZONES: List<HudZone> = listOf(
     HudZone.BottomStart, HudZone.BottomCenter, HudZone.BottomEnd,
     HudZone.LeftBar, HudZone.RightBar,
 )
+
+/**
+ * Default backdrop — solid black fill. Black is additive-transparent on
+ * the VITURE's additive-light display (glasses show the real world through
+ * it) and is the neutral chrome-only read on the phone mirror when the
+ * glasses are attached. Pulled out as a named composable so tests /
+ * screenshots can reference the exact same primitive.
+ */
+@Composable
+private fun BoxScope.DefaultBlackBackdrop() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(HudPalette.Black),
+    )
+}

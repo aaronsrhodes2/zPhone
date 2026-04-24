@@ -14,11 +14,15 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.skippy.droid.BuildConfig
 import com.skippy.droid.compositor.Compositor
 import com.skippy.droid.compositor.GlassesPresentation
 import com.skippy.droid.compositor.HudPalette
+import com.skippy.droid.layers.CameraPassthrough
 import com.skippy.droid.compositor.passthrough.MockPassthroughView
 import com.skippy.droid.compositor.passthrough.PassthroughHost
 import com.skippy.droid.features.battery.BatteryModule
@@ -103,6 +107,19 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var displayManager: DisplayManager
     private var glassesPresentation: GlassesPresentation? = null
+
+    /**
+     * Observable mirror of `glassesPresentation != null`. The phone-mirror
+     * `setContent` block reads this to decide between a black backdrop
+     * (glasses own the camera — the phone only shows chrome) and a live
+     * camera preview (no glasses — the phone is the stand-in viewfinder).
+     *
+     * Toggled in exactly two places: [showGlasses] sets it `true`, and
+     * [DisplayManager.DisplayListener.onDisplayRemoved] sets it `false`.
+     * `mutableStateOf` so Compose observes the flip and recomposes the
+     * backdrop without any manual invalidation.
+     */
+    private var glassesAttached by mutableStateOf(false)
 
     // Modern permission API — callbacks fire after user responds to the system dialog.
     // Both passthrough and device are guaranteed initialized before any callback fires.
@@ -214,6 +231,17 @@ class MainActivity : ComponentActivity() {
             // horizontal stretch. The GlassesPresentation keeps the default
             // (Black = additive-transparent) so the glasses display itself never
             // shows a letterbox.
+            //
+            // Backdrop logic: when the VITURE glasses are attached they've
+            // claimed the Camera2 pipeline (PassthroughCamera policy) and
+            // the phone mirror is chrome-only — black backdrop. When glasses
+            // are NOT attached the phone becomes the stand-in viewfinder:
+            // we drop a CameraPassthrough under the HUD so the rear camera
+            // paints the same "look through the lenses" view the Captain
+            // would see through the real glasses, with the HUD composited
+            // on top. The PassthroughCamera class handles the camera hand-
+            // off to whichever surface is currently attached; we just wire
+            // the attach/detach callbacks to the phone side.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -224,6 +252,26 @@ class MainActivity : ComponentActivity() {
                     contextEngine,
                     isGlasses = true,
                     letterboxColor = HudPalette.MirrorLetterbox,
+                    backdrop = {
+                        if (glassesAttached) {
+                            // Glasses own the camera. Phone mirror backdrop
+                            // stays black (matches what the glasses' additive
+                            // display reads as — the Captain sees the world
+                            // through the lenses, not on the phone).
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(HudPalette.Black)
+                            )
+                        } else {
+                            // No glasses — phone becomes a viewfinder.
+                            CameraPassthrough(
+                                onSurfaceAvailable = passthrough::attachPhone,
+                                onSurfaceDestroyed = passthrough::detachPhone,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    },
                 )
             }
         }
@@ -252,6 +300,7 @@ class MainActivity : ComponentActivity() {
                     runOnUiThread {
                         p.dismiss()
                         glassesPresentation = null
+                        glassesAttached = false
                         // If the Activity is currently backgrounded (Captain
                         // is in SkippyChat), onStop already ran and skipped
                         // the engine teardown because glasses were attached.
@@ -276,6 +325,7 @@ class MainActivity : ComponentActivity() {
         glassesPresentation?.dismiss()
         glassesPresentation = GlassesPresentation(this, display, modules, passthrough, contextEngine)
             .also { it.show() }
+        glassesAttached = true
         Log.d("Skippy", "showGlasses: presentation shown")
     }
 
