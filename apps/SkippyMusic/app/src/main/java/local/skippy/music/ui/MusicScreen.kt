@@ -17,6 +17,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -44,6 +47,10 @@ fun MusicScreen(
     val session     by viewModel.session.collectAsState()
     val playerState by viewModel.playerState.collectAsState()
     val error       by viewModel.error.collectAsState()
+
+    // Double-tap state for the ⏮ back button.
+    // First tap → seekToStart(); second tap within 5 s → previousTrack().
+    var lastBackTapMs by remember { mutableLongStateOf(0L) }
 
     val isPlaying   = playerState == MusicViewModel.PlayerState.Playing
     val isBuffering = playerState == MusicViewModel.PlayerState.Buffering
@@ -169,10 +176,19 @@ fun MusicScreen(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Stop + close
-            ControlButton(label = "■", sublabel = "STOP", tint = Gray, size = 56.dp) {
-                viewModel.stop()
-                onBack()
+            // ⏮ Back button — single tap restarts current track,
+            //   double-tap within 5 s loads the previous track.
+            ControlButton(label = "⏮", sublabel = "BACK", tint = Gray, size = 56.dp) {
+                val now = System.currentTimeMillis()
+                if (now - lastBackTapMs < 5_000L) {
+                    // Second tap within 5 s → previous track
+                    viewModel.previousTrack()
+                    lastBackTapMs = 0L          // reset so a third tap restarts again
+                } else {
+                    // First tap → restart current track from the top
+                    viewModel.seekToStart()
+                    lastBackTapMs = now
+                }
             }
             // Play / Pause — prominent center button
             ControlButton(

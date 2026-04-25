@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit
  *   2. [loadAndPlay] feeds the stream URL into ExoPlayer.
  *   3. When ExoPlayer hits STATE_ENDED, [advance] is called automatically —
  *      SkippyTel picks the next DJ track and we switch streams.
- *   4. Controls: [togglePlayPause], [skip], [stop].
+ *   4. Controls: [togglePlayPause], [skip], [seekToStart], [previousTrack].
  *
  * ExoPlayer is released in [onCleared]. The ViewModel survives screen rotation.
  */
@@ -59,6 +59,13 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    /**
+     * The track that was playing before the current one.
+     * Populated whenever [advance] or [skip] switches tracks so the ⏮
+     * double-tap can reload it.
+     */
+    private var prevNowPlaying: NowPlaying? = null
 
     sealed class PlayerState {
         object Idle      : PlayerState()
@@ -165,6 +172,8 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
 
     fun skip() {
         viewModelScope.launch {
+            // Save current track before switching so ⏮ double-tap can return to it
+            prevNowPlaying = _session.value?.nowPlaying
             val sess = withContext(Dispatchers.IO) { skipSession() }
             if (sess?.nowPlaying != null) {
                 _session.value = sess
@@ -173,12 +182,31 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun stop() {
-        player.stop()
-        _playerState.value = PlayerState.Idle
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) { controlSession("stop") }
-            _session.value = null
+    /**
+     * Seek the current track back to the beginning (single ⏮ tap).
+     */
+    fun seekToStart() {
+        player.seekTo(0)
+        // Ensure playback is running after seek (it may have been paused)
+        if (!player.isPlaying) player.play()
+    }
+
+    /**
+     * Load the previous track (double ⏮ tap within 5 s).
+     * Falls back to [seekToStart] if no previous track is known.
+     */
+    fun previousTrack() {
+        val prev = prevNowPlaying
+        if (prev != null) {
+            // The current track becomes the new "prev" so a third tap goes back again
+            prevNowPlaying = _session.value?.nowPlaying
+            _session.value = _session.value?.copy(
+                nowPlaying = prev,
+                // mode/status/etc. unchanged — we're still in the same session
+            )
+            loadAndPlay(prev.streamUrl)
+        } else {
+            seekToStart()
         }
     }
 
@@ -196,6 +224,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun advance() {
         Log.i(TAG, "Track ended — calling /music/session/advance")
+        prevNowPlaying = _session.value?.nowPlaying   // save so ⏮ can return here
         val sess = withContext(Dispatchers.IO) { advanceSession() }
         if (sess?.nowPlaying != null) {
             _session.value = sess
