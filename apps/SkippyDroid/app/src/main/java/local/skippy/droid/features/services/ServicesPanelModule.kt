@@ -3,12 +3,12 @@ package local.skippy.droid.features.services
 import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -50,7 +50,8 @@ import kotlinx.coroutines.delay
  * connecting at arbitrary moments.
  */
 class ServicesPanelModule(
-    private val host: PassthroughHost,
+    private val host:     PassthroughHost,
+    private val registry: ServiceRegistry? = null,   // null = legacy mode (no server manifest)
 ) : FeatureModule {
 
     override val id = "local.skippy.services"
@@ -76,40 +77,19 @@ class ServicesPanelModule(
             }
         }
 
-        Column {
-            Text(
-                text = "SERVICES",
-                color = HudPalette.DimGreenHi,
-                fontSize = hudSp(0.7f),
-                fontFamily = hudFont,
-                fontWeight = FontWeight.Bold,
-            )
-            if (snapshot.isEmpty()) {
-                Text(
-                    text = "— none —",
-                    color = HudPalette.DimGreenHi,
-                    fontSize = hudSp(0.85f),
-                    fontFamily = hudFont,
-                )
-            } else {
-                snapshot.forEach { view ->
-                    val isActive = view.id == activeId
-                    Text(
-                        text = (if (isActive) "▸ " else "  ") + view.name,
-                        color = if (isActive) HudPalette.Green else HudPalette.White,
-                        fontSize = hudSp(0.9f),
-                        fontFamily = hudFont,
-                        modifier = Modifier
-                            .width(220.dp)
-                            .padding(vertical = 6.dp)
-                            .clickable {
-                                Log.i("Local.Skippy.Services", "tile tapped: ${view.id}")
-                                host.activate(view.id)
-                            },
-                    )
-                }
-            }
-        }
+        // SkippyTel live service manifest (null if registry not wired)
+        val skippyServices by (registry?.services ?: kotlinx.coroutines.flow.MutableStateFlow(emptyList())).collectAsState()
+
+        ServicesPanel(
+            passthroughViews  = snapshot,
+            activeId          = activeId,
+            skippyServices    = skippyServices,
+            clickable         = true,
+            onActivate        = { id ->
+                Log.i("Local.Skippy.Services", "tile tapped: $id")
+                host.activate(id)
+            },
+        )
     }
 
     /**
@@ -127,30 +107,82 @@ class ServicesPanelModule(
             }
         }
 
+        val skippyServices by (registry?.services ?: kotlinx.coroutines.flow.MutableStateFlow(emptyList())).collectAsState()
+
+        ServicesPanel(
+            passthroughViews  = snapshot,
+            activeId          = activeId,
+            skippyServices    = skippyServices,
+            clickable         = false,
+            onActivate        = {},
+        )
+    }
+
+    // ── Shared render ──────────────────────────────────────────────────────
+
+    @Composable
+    private fun ServicesPanel(
+        passthroughViews: List<AppRegistry.RegisteredView>,
+        activeId:         String?,
+        skippyServices:   List<ServiceManifest>,
+        clickable:        Boolean,
+        onActivate:       (String) -> Unit,
+    ) {
         Column {
             Text(
-                text = "SERVICES",
-                color = HudPalette.DimGreenHi,
-                fontSize = hudSp(0.7f),
+                text       = "SERVICES",
+                color      = HudPalette.DimGreenHi,
+                fontSize   = hudSp(0.7f),
                 fontFamily = hudFont,
                 fontWeight = FontWeight.Bold,
             )
-            if (snapshot.isEmpty()) {
+
+            // ── Passthrough apps (viewport-mounted) ──────────────────────
+            if (passthroughViews.isEmpty() && skippyServices.isEmpty()) {
                 Text(
-                    text = "— none —",
-                    color = HudPalette.DimGreenHi,
-                    fontSize = hudSp(0.85f),
+                    text       = "— none —",
+                    color      = HudPalette.DimGreenHi,
+                    fontSize   = hudSp(0.85f),
                     fontFamily = hudFont,
                 )
-            } else {
-                snapshot.forEach { view ->
-                    val isActive = view.id == activeId
+            }
+
+            passthroughViews.forEach { view ->
+                val isActive = view.id == activeId
+                val mod = if (clickable) {
+                    Modifier.width(220.dp).padding(vertical = 4.dp)
+                        .clickable { onActivate(view.id) }
+                } else {
+                    Modifier.padding(top = 2.dp)
+                }
+                Text(
+                    text       = (if (isActive) "▸ " else "  ") + view.name,
+                    color      = if (isActive) HudPalette.Green else HudPalette.White,
+                    fontSize   = hudSp(0.9f),
+                    fontFamily = hudFont,
+                    modifier   = mod,
+                )
+            }
+
+            // ── SkippyTel live services ───────────────────────────────────
+            val actionable = skippyServices.filter { it.isActionable }
+            if (actionable.isNotEmpty()) {
+                if (passthroughViews.isNotEmpty()) {
                     Text(
-                        text = (if (isActive) "▸ " else "  ") + view.name,
-                        color = if (isActive) HudPalette.Green else HudPalette.White,
-                        fontSize = hudSp(0.9f),
+                        text       = "─────",
+                        color      = HudPalette.DimGreenHi,
+                        fontSize   = hudSp(0.6f),
                         fontFamily = hudFont,
-                        modifier = Modifier.padding(top = 2.dp),
+                        modifier   = Modifier.padding(vertical = 2.dp),
+                    )
+                }
+                actionable.forEach { svc ->
+                    Text(
+                        text       = "  ${svc.name}",
+                        color      = HudPalette.White.copy(alpha = 0.65f),
+                        fontSize   = hudSp(0.85f),
+                        fontFamily = hudFont,
+                        modifier   = Modifier.padding(top = 2.dp),
                     )
                 }
             }

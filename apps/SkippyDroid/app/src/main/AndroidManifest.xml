@@ -28,6 +28,8 @@
     -->
     <queries>
         <package android:name="local.skippy.chat" />
+        <package android:name="local.skippy.gallery" />
+        <package android:name="org.jellyfin.mobile" />
         <package android:name="com.android.chrome" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
@@ -83,6 +85,29 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <!--
+          Service Grid Widget — home screen launcher for SkippyTel services.
+          Shows live-discovered service icons; tap to open each service directly.
+        -->
+        <receiver
+            android:name=".features.widget.ServiceGridWidget"
+            android:exported="false"
+            android:label="Skippy Services">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="local.skippy.droid.ACTION_LAUNCH_SERVICE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/service_grid_widget_info" />
+        </receiver>
+
+        <!-- RemoteViewsService that populates the widget's GridView adapter -->
+        <service
+            android:name=".features.widget.ServiceGridWidgetService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
 
     </application>
 

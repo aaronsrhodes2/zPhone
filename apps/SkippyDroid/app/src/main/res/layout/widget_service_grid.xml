@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Service Grid Widget root layout.
+  Dark translucent background, full-bleed GridView of service icons.
+  RemoteViews constraint: only basic View types are allowed here.
+-->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#CC0A0A14"
+    android:padding="4dp">
+
+    <!-- Loading / empty state -->
+    <TextView
+        android:id="@+id/widget_empty_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:text="Connecting to SkippyTel…"
+        android:textColor="#6600FF88"
+        android:textSize="12sp"
+        android:fontFamily="monospace"
+        android:visibility="gone" />
+
+    <!-- Live service grid -->
+    <GridView
+        android:id="@+id/widget_grid"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:numColumns="4"
+        android:horizontalSpacing="4dp"
+        android:verticalSpacing="4dp"
+        android:stretchMode="columnWidth"
+        android:gravity="center"
+        android:listSelector="@android:color/transparent" />
+
+</FrameLayout>

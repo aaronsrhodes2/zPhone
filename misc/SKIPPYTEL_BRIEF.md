@@ -1,15 +1,14 @@
 # SkippyTel — Handoff Brief
 
-**Status:** v1 · April 22 2026 · authored from the SkippyDroid side
-**For:** the engineers spinning up the SkippyTel project
-**Companion docs (same repo):** `PASSTHROUGH_PROTOCOL.md`, `PASSTHROUGH_STANDARD.md`
+**Status:** v2 · April 25 2026 · updated from the SkippyDroid side
+**v1 authored:** April 22 2026
+**For:** engineers and external services integrating with SkippyTel
+**Companion docs:** `PASSTHROUGH_PROTOCOL.md`, `PASSTHROUGH_STANDARD.md`
 
-SkippyTel is the PC-side AI brain that SkippyDroid (Android on a Samsung
-Galaxy S23, driving VITURE Luma Ultra glasses) calls for inference that
-can't run on the phone: LLM chat, Whisper transcription, face recognition,
-precise celestial ephemeris. This brief is everything SkippyTel needs to
-know about what the phone expects and how SkippyTel fits into the wider
-Skippy system.
+SkippyTel is the PC-side hub that all Skippy phone apps call for AI
+inference, media, and service discovery. It runs on the Captain's RTX
+4070 Ti Super PC inside Docker Compose, reachable via Tailscale at
+`http://skippy-pc:3003`.
 
 **Cross-project quarantine holds.** SkippyTel implements from this
 document. Neither repo imports from the other. Only this brief crosses
@@ -19,28 +18,24 @@ the boundary.
 
 ## 1. What SkippyTel IS (and is NOT)
 
-**IS.** An upstream AI inference service. **REST over Tailscale** from
-the phone's perspective — plain HTTP, JSON bodies, OkHttp on the client
-side. Internally, SkippyTel may host MCP servers (Anthropic's Model
-Context Protocol) to give Claude/Ollama tool access on the PC, but that
-is an implementation detail invisible to the phone. Stateless
-request/response. Services wrapped in Docker Compose on the Captain's
-RTX 4070 Ti Super PC. Partially real today: Flask API on `:5001`,
-Ollama on `:11434`, Physics MCP scaffolded in `services/physics-mcp/`.
+**IS.**
+- An upstream AI inference service (LLM, Whisper, face recognition)
+- A **service control plane** — the single source of truth for what
+  capabilities exist in the Skippy ecosystem, who has them, and how
+  phones should surface them
+- REST over Tailscale. Stateless request/response. SSE allowed where the
+  phone long-polls. Phone initiates; PC answers.
 
 **IS NOT.**
-- **Not a passthrough view.** Passthrough apps mount *into* the phone's
-  1540×960 viewport via `PASSTHROUGH_PROTOCOL.md` (scene-tree + MJPEG on
-  phone port `:47823`). SkippyTel is the other direction — phone → PC.
-  Different concern, different port family, different role. If SkippyTel
-  ever wants its own dashboard UI on the glasses, it does so by
-  implementing the Passthrough Protocol as a separate concern.
-- **Not a push channel.** Phone hotspots drop. Tailscale mesh can
-  partition. Everything is phone-initiated request/response. SSE allowed
-  where the phone is the long-poller, not PC-initiated.
-- **Not a frame transport.** Real-time AR frames are phone-local
-  (loopback MJPEG between in-process producers and the passthrough host).
-  SkippyTel never sees pose or frames.
+- **Not a passthrough view.** Passthrough apps mount into the phone's
+  1540×960 viewport via `PASSTHROUGH_PROTOCOL.md`. SkippyTel is the
+  other direction.
+- **Not a push channel.** Tailscale can partition. Design for
+  phone-initiated only.
+- **Not a data plane for external services.** When a service (e.g.
+  Bilby on the Mac) registers a `base_url`, phone clients hit that
+  service **directly** over Tailscale. SkippyTel only holds the
+  manifest entry. See §10.
 
 ---
 
@@ -49,25 +44,20 @@ Ollama on `:11434`, Physics MCP scaffolded in `services/physics-mcp/`.
 | Property | Value |
 |---|---|
 | Binding | Tailscale mesh + loopback. **No public internet exposure.** |
-| Auth | **Tailscale IS the auth.** Same doctrine as passthrough protocol. No JWT, no mTLS, no shared secret in Phase 1. |
-| Cleartext | Allowed inside the mesh. Phase 2 revisits if the service ever leaves Tailscale. |
-| Hostname the phone uses | `http://skippy-pc:5001` — literal string in SkippyDroid's `MainActivity.kt` (`pcUrl`). Change in lockstep with any hostname migration. |
+| Auth | **Tailscale IS the auth.** No JWT, no mTLS in Phase 1. Registration endpoint adds `X-Skippy-Token` shared secret (see §11). |
+| Cleartext | Allowed inside the mesh. |
+| Hostname (phone → SkippyTel) | `http://skippy-pc:3003` — real phone via Tailscale MagicDNS. |
+| Hostname (emulator → SkippyTel) | `http://10.0.2.2:3003` — AVD host loopback. |
 | Phone HTTP client | OkHttp, 3s connect / 5s read timeout. Pings `/health` every 10s. |
-| Degradation | `pcState = UNKNOWN / ONLINE / OFFLINE`. Phone modules that require network skip render when OFFLINE. |
-| Spec version | `spec_version: "1"` in every response body. Integer increments on breaking changes. Phone may refuse mismatches. |
+| Degradation | `pcState = UNKNOWN / ONLINE / OFFLINE`. Phone modules skip render when OFFLINE. |
+| Spec version | `spec_version: "1"` in every response body. Integer increments on breaking changes. |
 
 ---
 
-## 3. Endpoints the phone already expects (or plans to hit)
-
-Ordered by when the phone will need them. Each row is the minimum
-contract — SkippyTel may add response fields; the phone tolerates extras.
+## 3. Core endpoints
 
 ### 3.1 `GET /health`
-**Used by:** SkippyDroid `TransportLayer` every 10 s.
-**Contract:** Any 200 OK → phone flips to ONLINE. Response body ignored
-for classification but used for latency measurement.
-**Drives:** RightBar SignalStack glyph:
+200 OK → phone flips to ONLINE. Body drives RightBar signal glyph:
 
 | round-trip | bars |
 |---|---|
@@ -77,226 +67,257 @@ for classification but used for latency measurement.
 | reachable  | 1 |
 | unreachable| 0 |
 
-**Latency budget:** sub-100ms warm. Slow `/health` = always 1 bar.
-**Existing:** Already implemented at `services/flask-api/app/routes/health.py`.
-Leave alone — phone depends on it.
-
 ### 3.2 `POST /intent/unmatched`
-**Used by:** SkippyDroid `CommandDispatcher.onUnmatched` (currently
-logs-only; wiring pending).
-**Purpose:** When the phone can't classify a voice command locally
-(`navigate to X`, `cancel`, `help`), it escalates the raw text here
-for LLM interpretation.
-**Request:**
-```json
-{
-  "text": "what time is sunset tomorrow in tokyo",
-  "source": "voice",
-  "context": { "lat": 37.77, "lng": -122.41, "mode": "walking" }
-}
-```
-**Response:**
-```json
-{
-  "spec_version": "1",
-  "reply":  "5:48 PM JST tomorrow.",
-  "speak":  "Sunset in Tokyo tomorrow is five forty-eight PM.",
-  "actions": []
-}
-```
-`reply` renders as text in the BottomCenter chat slot. `speak` (if
-present) is handed to on-device TTS. `actions` is reserved for a future
-capability where the LLM triggers named phone intents (e.g.
-`{"intent":"navigate","args":"the park"}`).
+Voice command escalation. Request: `{ text, source?, context? }`.
+Response: `{ spec_version, reply, speak, tier }`.
+`tier` identifies which model answered: `"local"` (Ollama), `"claude"`,
+`"gemini"`, etc. Streamed SSE available via `Accept: text/event-stream`.
+**Budget: < 2 s.**
 
-**Latency budget:** < 2 s for conversational feel. Streamed SSE reply
-welcome if `Accept: text/event-stream`.
-
-### 3.3 `POST /translate/audio`
-**Used by:** Future Translation feature module.
-**Purpose:** Other-speaker language detected and translated to English
-subtitles in the TopCenter slot.
-**Request:** `multipart/form-data` with `audio` field (WAV or AAC, ~3s
-clips), optional `hint_lang`.
-**Response:**
-```json
-{
-  "spec_version": "1",
-  "detected_lang": "ja",
-  "english_text":  "The train is leaving from platform nine.",
-  "confidence": 0.94
-}
-```
-**Backend:** `faster-whisper` medium.
-**Latency budget:** < 3 s end-to-end (capture → subtitle).
+### 3.3 `POST /translate/audio` / `POST /translate/text`
+Whisper transcription + Gemini translation. Audio: multipart WAV/AAC.
+Text: `{ text, target_lang? }`. Response: `{ detected_lang, english_text, confidence }`.
+**Budget: < 3 s.**
 
 ### 3.4 `GET /starmap?lat=&lng=&t_iso=`
-**Used by:** Future Star Map feature module (phone-native version,
-distinct from the Passthrough Star Map producer in `apps/SkippyStarMap/`).
-**Purpose:** Exact celestial positions at a given (lat, lng, time).
-**Response:**
-```json
-{
-  "spec_version": "1",
-  "t_iso": "2026-04-22T23:00:00Z",
-  "objects": [
-    { "name": "Venus",  "type": "planet", "az_deg": 272.4, "alt_deg": 18.1, "mag": -4.2 },
-    { "name": "Vega",   "type": "star",   "az_deg": 51.0,  "alt_deg": 67.3, "mag":  0.03 }
-  ]
-}
-```
-**Backend:** Thin adapter over `services/physics-mcp/`. Do not duplicate
-ephemeris math.
-**Latency budget:** cacheable; phone may cache 60 s per (lat, lng).
+Celestial positions. Response: `{ objects: [{name, type, az_deg, alt_deg, mag}] }`.
+Thin adapter over `services/physics-mcp/`. **Cacheable.**
 
-### 3.5 `POST /yeybuddy/identify`
-**Used by:** Future Friend Recognizer.
-**Purpose:** Identify a cropped face against the local friend database.
-**Request:** `multipart/form-data` with `image` (face crop JPEG).
-**Response:**
-```json
-{
-  "spec_version": "1",
-  "match": { "name": "Alice", "confidence": 0.87 }
-}
-```
-or `{ "spec_version":"1", "match": null }` when no match ≥ threshold.
-**Backend:** InsightFace `buffalo_l` embedding + cosine match against
-SQLite. **The friend DB never leaves PC.**
-**Latency budget:** < 1 s per face (camera delivers crops sparsely).
+### 3.5 `POST /heybuddy/identify`
+Face crop JPEG → `{ match: {name, confidence} | null }`.
+InsightFace buffalo_l + cosine against local SQLite. **Face DB never leaves PC.**
+**Budget: < 1 s.**
 
 ### 3.6 `GET /battery`
-**Used by:** Future battery-panel aggregator.
-**Purpose:** PC's own power state, to roll into the phone's
-battery-panel summary.
-**Response:**
+PC power state: `{ level, source, plugged, ups_state }`.
+`source ∈ {ac, battery, ups}`. Polled every 60 s.
+
+### 3.7 `POST /image` *(stub — not yet deployed)*
+Returns 503 with `error_type: "not_deployed"`. Endpoint reserved for a
+future first-party Stable Diffusion service inside the Docker stack.
+The `[IMAGE: prompt]` sentinel is preserved in the intent protocol;
+`/intent/unmatched` strips the tag from replies until the service lands.
+
+### 3.8 `GET /vault/bootstrap`
+Phone bootstrap config: SkippyTel URL, APK download base, feature flags.
+Called on first launch to self-configure.
+
+---
+
+## 4. Service discovery — `GET /services` *(the control plane)*
+
+The phone's primary integration point after `/health`. Every SkippyChat
+and SkippyDroid instance polls this every **5 minutes** to discover the
+live ecosystem.
+
+### Request
+```
+GET /services
+```
+
+### Response
 ```json
 {
   "spec_version": "1",
-  "level": 100,
-  "source": "ac",
-  "plugged": true,
-  "ups_state": "online"
+  "refreshed_at": "<ISO-8601>",
+  "services": [ <ServiceManifest>, ... ]
 }
 ```
-`source ∈ {ac, battery, ups}`. If on UPS and mains drops, flip `source`
-to `battery` so the phone can highlight the PC as at-risk.
-**Latency budget:** sub-second, polled every 60 s.
 
-### 3.7 `POST /tts/speak` *(optional, Phase 2)*
-**Used by:** Future — only if on-device Android TTS quality is
-insufficient.
-**Request:** `{ "text": "...", "voice": "skippy", "priority": "normal" }`.
-**Response:** audio stream or a short-lived URL to fetch the audio.
-**Current plan:** phone does on-device TTS (free, offline-capable);
-this endpoint only lands if we measure a quality problem.
+### ServiceManifest shape
+```json
+{
+  "id":           "bilby",
+  "name":         "Bilby",
+  "tagline":      "Automated DJ — Traktor decks or Drive shuffle",
+  "available":    true,
+  "status_detail":"Mac Bilby reachable (Traktor mode)",
+  "base_url":     "http://skippy-mac:7334",
+  "display": {
+    "mode":          "overlay",
+    "hud_zone":      "topcenter",
+    "companion_app": null
+  },
+  "voice_triggers": ["what's playing", "now playing", "bilby next"],
+  "endpoints": {
+    "status": "/bilby/status",
+    "next":   "/bilby/next"
+  }
+}
+```
+
+### Field semantics
+
+| Field | Meaning |
+|---|---|
+| `id` | Machine key. Stable. Used as icon cache key, deep-link param, registration id. |
+| `available` | Live-computed at request time (TCP probe or config check). Sub-50ms. |
+| `status_detail` | Human-readable reason. Shown in SkippyDroid services panel and widget tooltip. |
+| `base_url` | **Non-null = external service on Tailscale.** Phone routes data traffic to this host directly. SkippyTel is the control plane only. Null = traffic goes through SkippyTel. |
+| `display.mode` | `"overlay"` render in HUD zone · `"companion"` launch companion app · `"inline"` render inside chat · `"background"` invisible to user |
+| `display.hud_zone` | SkippyDroid zone name: `"topcenter"`, `"topend"`, `"viewport"`, etc. Null for non-overlay. |
+| `display.companion_app` | Android package name to launch. Widget tap resolves this first. |
+| `voice_triggers` | Phrases that activate the service. `"*"` = catch-all (Skippy AI only). |
+| `endpoints` | Short name → relative path. Appended to `base_url` when set, else to SkippyTel base. |
+
+### Phone-side behaviour on receipt
+
+1. **SkippyChat `ChatViewModel`** — loads `dynamicTriggers` into
+   `KeywordScanner`: flat map of `phrase → service_id`, sorted
+   longest-first. New services become voice-activatable within 5 min,
+   no rebuild needed.
+2. **SkippyDroid `ServiceRegistry`** — exposes `services: StateFlow`,
+   drives the `ServicesPanelModule` live list.
+3. **`ServiceGridWidget`** — Android home screen widget populated from
+   this manifest. Fetches per-service icons from `GET /services/<id>/icon`.
+   Tap action: `companion_app` → launch app · `base_url` → open in
+   browser · neither → SkippyChat hint.
+
+### Service icon endpoint
+```
+GET /services/<service_id>/icon   →  128×128 PNG
+```
+Generated on first request (Stable Diffusion when available, Pillow
+fallback otherwise). Cached permanently in `state/icons/<id>.png`.
+Delete the file to force regeneration.
 
 ---
 
-## 4. Doctrine inherited from SkippyDroid
+## 5. Dynamic service registration protocol *(pending implementation)*
 
-- **Palette discipline for structured responses.** If SkippyTel ever
-  returns colored status (severity, mode tag), use palette enum names
-  only — `"cyan"`, `"amber"`, `"red"`, `"green"`, `"violet"`, `"black"`,
-  `"white"` — never hex. The phone's palette is the authority
-  (`compositor/HudPalette.kt`).
-- **No ellipsis, no scrollbars.** Any text SkippyTel returns that lands
-  in a HUD slot must be designed to wrap cleanly. Keep replies tight.
-  A four-sentence answer beats a paragraph.
-- **Stateless request/response by default.** Phone assumes it can
-  retry any request after a partition without side effects.
-- **Version field doctrine.** Every response body includes
-  `spec_version: "1"`. Integer increments on breaking changes. Phone
-  may refuse mismatches.
+External services (Mac Bilby, future Mac/PC daemons) self-register with
+SkippyTel at startup instead of being hardcoded in `services.py`. Phone
+picks them up on the next 5-minute poll with no config changes on either
+side.
+
+### Registration
+```
+POST /services/register
+X-Skippy-Token: <SKIPPY_REGISTRATION_TOKEN from .env>
+Content-Type: application/json
+
+{
+  "id":           "bilby",
+  "name":         "Bilby",
+  "tagline":      "...",
+  "base_url":     "http://skippy-mac:7334",
+  "display":      { "mode": "overlay", "hud_zone": "topcenter" },
+  "voice_triggers": ["what's playing", "bilby next", ...],
+  "endpoints":    { "status": "/bilby/status", "next": "/bilby/next" },
+  "ttl_seconds":  90
+}
+```
+Response: `204 No Content` on success, `401` on bad token.
+
+### Heartbeat (keep-alive)
+```
+POST /services/heartbeat/<id>
+X-Skippy-Token: <token>
+```
+Call every **60 seconds**. Miss two consecutive → SkippyTel sets
+`available: false` on the manifest entry. Triggers go dark on phones
+within 5 minutes.
+
+### Clean deregister
+```
+DELETE /services/<id>
+X-Skippy-Token: <token>
+```
+Called on SIGTERM / clean shutdown.
+
+### Semantics
+- Registrations persist to `state/registered_services.json` — survive
+  SkippyTel container restarts.
+- `GET /services` merges static entries (hardcoded in `services.py`)
+  with dynamic registrations. **Dynamic registration wins on id
+  collision** — lets an external service override its own static stub
+  once it starts self-registering.
+- `SKIPPY_REGISTRATION_TOKEN` env var. Tailscale is the outer auth
+  layer; this token is tamper-proofing only.
+
+### Mac Bilby startup sequence (once this is built)
+```python
+# On startup
+POST /services/register  { ...bilby manifest... }
+
+# Every 60s (background thread)
+POST /services/heartbeat/bilby
+
+# On SIGTERM
+DELETE /services/bilby
+```
+
+---
+
+## 6. Current service manifest (April 25 2026)
+
+| id | mode | base_url | available |
+|---|---|---|---|
+| `intent` | companion → `local.skippy.chat` | null (lives in SkippyTel) | always |
+| `bilby` | overlay → `topcenter` | `http://skippy-mac:7334` | TCP probe |
+| `dropship` | companion → `local.skippy.gallery` | null | Drive folder configured |
+| `image` | inline | null | **stub — always false** |
+| `translate` | inline | null | always |
+| `ups` | overlay → `topend` | null | TCP probe :9338 |
+| `heybuddy` | inline | null | always |
+| `jellyfin` | companion → `org.jellyfin.mobile` | `http://skippy-pc:8096` | TCP probe |
+| `starmap` | overlay → `viewport` | null | **stub — always false** |
+| `vault` | background | null | always |
+
+---
+
+## 7. Doctrine
+
+- **Palette discipline.** Colored status uses palette enum names only:
+  `"cyan"`, `"amber"`, `"red"`, `"green"`, `"violet"`. Never hex.
+- **No ellipsis, no scrollbars.** Any text in a HUD slot must wrap
+  cleanly. Tight replies beat prose.
+- **Stateless by default.** Phone may retry any request after partition.
+- **Version field.** Every response includes `spec_version: "1"`.
 - **Quarantine holds.** SkippyTel does not import from SkippyDroid,
-  SkippyAR, SkippyGlassesMac, SkippyStarMap, or any DJ sister project.
-  Protocol details SkippyTel needs live here in this document, copied
-  as inline comments into SkippyTel's own code.
+  SkippyAR, SkippyGlassesMac, or any DJ project. Protocol details live
+  here and are copied as comments into SkippyTel's own code.
 
 ---
 
-## 5. Privacy posture
+## 8. Privacy posture
 
 - **Face DB never leaves PC.** SQLite on the 4070 Ti box.
 - **Voice audio never leaves the mesh.** faster-whisper runs locally.
-- **Claude API routing is deliberate.** The existing
-  `docker-compose.yml` passes `ANTHROPIC_API_KEY` into the Flask
-  service, implying PC proxies Claude. Fine for Phase 1 but means PC
-  must be online to Anthropic — design the Ollama-local fallback for
-  when it isn't. Never route personal data (voice transcripts, faces,
-  GPS trails) to Anthropic without an explicit opt-in from the Captain.
+- **Image generation** (when deployed) runs locally on the same box.
+  No image prompt or pixel ever reaches a third-party API.
+- **Claude/Gemini routing is deliberate.** `ANTHROPIC_API_KEY` and
+  `GEMINI_API_KEY` are in `.env`. Only text intent queries reach these
+  APIs — never voice audio, face crops, GPS, or image data.
+  Ollama (local) is always the default tier.
 
 ---
 
-## 6. Existing infra SkippyTel should build on (not replace)
+## 9. Open questions / resolved
 
-| What | Where | Role |
+| # | Question | Status |
 |---|---|---|
-| Flask router | `services/flask-api/app/main.py` | Top-level dispatcher. Add blueprints; do not fork. |
-| `/health` | `services/flask-api/app/routes/health.py` | Already exists. Phone depends on it. |
-| `/physics` blueprint | `services/flask-api/app/routes/physics.py` | Bolt `/starmap` on top of this. |
-| Physics MCP | `services/physics-mcp/physics_mcp/` | Celestial math. `/starmap` wraps it. |
-| Ollama | docker-compose `ollama` on `:11434` | Default local LLM. Flask API already wired via `OLLAMA_BASE_URL`. |
-| Docker Compose | `docker-compose.yml` at repo root | Add new services here, not as sibling stacks. |
+| 1 | MCP vs REST naming | **Resolved** — phone stays on REST/OkHttp. MCP is internal SkippyTel tooling only. |
+| 2 | Streaming for `/intent/unmatched` | **Resolved** — SSE supported. `Accept: text/event-stream`. |
+| 3 | Claude vs Ollama routing | **Resolved** — explicit phrase triggers per tier. No auto-fallback. See `routes/intent.py`. |
+| 4 | Face DB enrollment UX | Open — manual import CLI planned. |
+| 5 | Audio codec for `/translate/audio` | Open — phone records WAV; Whisper handles it server-side. |
+| 6 | Dynamic service registration | **Designed (§5), implementation pending.** |
+| 7 | TTS / voice profiles | **Future sprint** — Skippy/Bilby/Nagatha voices from R.C. Bray characterizations. Local XTTS v2. Never leaves the mesh. |
 
 ---
 
-## 7. Open questions for SkippyTel to resolve
+## 10. Files SkippyTel may reference (read-only)
 
-These are deliberately left unresolved — SkippyTel picks them up.
-
-**Resolved (April 22 2026):** the phone → SkippyTel boundary is REST
-(see §1 and §2). When the Captain says "the MCP server," it means the
-service that *internally* hosts MCP servers for Claude/Ollama tool use.
-The phone stays on OkHttp.
-
-1. **Streaming for `/intent/unmatched`.** SSE to the phone so partial
-   LLM tokens render progressively? Or wait for full response? Affects
-   perceived latency more than raw TTFT.
-2. **Claude vs Ollama routing.** Who decides which model handles a
-   request — the phone (sends `model_hint`), the router (picks per
-   intent category), or is it always Ollama first with Claude fallback?
-3. **Face DB enrollment UX.** Manual photo import is the plan. CLI on
-   the PC? Tiny web UI served from Flask? Does not belong in
-   SkippyDroid.
-4. **Audio codec for `/translate/audio`.** S23 can record WAV or AAC;
-   Whisper prefers 16 kHz mono PCM. Who transcodes (phone or PC), and
-   at what quality tier.
-
----
-
-## 8. Files in the Skippy repo SkippyTel may want to read
-
-None should be imported. All are read-only references.
-
-| Path | Why |
+| Path (zPhone repo) | Why |
 |---|---|
-| `apps/SkippyDroid/.../layers/TransportLayer.kt` | Phone HTTP client — sets the `/health` cadence, latency tiers, and timeout budgets SkippyTel must hit. |
-| `apps/SkippyDroid/.../MainActivity.kt` (line ~53) | `pcUrl = "http://skippy-pc:5001"` — canonical PC hostname. |
-| `apps/SkippyDroid/.../layers/CommandDispatcher.kt` | `onUnmatched` hook — the escalation path for voice commands. |
-| `docker-compose.yml` | Existing service topology. |
-| `services/flask-api/app/main.py` | Existing Flask router. |
-| `services/physics-mcp/physics_mcp/` | Celestial math; `/starmap` wraps it. |
-| `misc/PASSTHROUGH_PROTOCOL.md` §§1, 14, 15 | Transport / auth / versioning doctrine to mirror. |
-| `misc/PASSTHROUGH_STANDARD.md` | Palette + fit doctrine that structured responses must honor. |
-
----
-
-## 9. What the phone will build next (heads-up for SkippyTel priority)
-
-In rough order the phone intends to start calling SkippyTel:
-
-1. `/health` — already called, lands in the RightBar signal glyph.
-2. `/intent/unmatched` — first real use once voice works past
-   locally-classified intents.
-3. `/translate/audio` — Translation feature module.
-4. `/starmap` — Star Map feature module (phone-side fallback, separate
-   from the standalone `SkippyStarMap` passthrough producer).
-5. `/yeybuddy/identify` — Friend Recognizer.
-6. `/battery` — PC node of the battery-panel aggregator.
-
-If SkippyTel picks the order of implementation: this list is the
-phone's demand order.
+| `apps/SkippyDroid/.../layers/TransportLayer.kt` | Sets `/health` cadence and timeout budgets. |
+| `apps/SkippyDroid/.../MainActivity.kt` | Canonical `pcUrl`. |
+| `apps/SkippyDroid/.../features/services/ServiceManifest.kt` | Kotlin mirror of the JSON shape — keep in sync manually. |
+| `apps/SkippyChat/.../model/ServiceManifest.kt` | SkippyChat's local copy — same quarantine rule. |
+| `apps/SkippyChat/.../model/KeywordScanner.kt` | How dynamic triggers are consumed client-side. |
+| `apps/SkippyDroid/.../features/widget/ServiceGridWidget.kt` | How the home screen widget consumes the manifest. |
+| `misc/PASSTHROUGH_PROTOCOL.md §§1,14,15` | Transport / auth / versioning doctrine. |
 
 ---
 

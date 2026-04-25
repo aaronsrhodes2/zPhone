@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Single service icon cell inside the Service Grid Widget.
+  Icon (from SkippyTel /services/<id>/icon) + service name label.
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="4dp"
+    android:background="@android:color/transparent">
+
+    <ImageView
+        android:id="@+id/service_icon"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
+        android:scaleType="fitCenter"
+        android:contentDescription="Service icon" />
+
+    <TextView
+        android:id="@+id/service_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:gravity="center"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="#CC00FF88"
+        android:textSize="9sp"
+        android:fontFamily="monospace" />
+
+</LinearLayout>

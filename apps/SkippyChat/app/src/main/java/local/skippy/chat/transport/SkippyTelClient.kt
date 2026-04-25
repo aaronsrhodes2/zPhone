@@ -9,6 +9,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import local.skippy.chat.model.ServiceManifest
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -32,8 +33,9 @@ import java.util.concurrent.TimeUnit
  *   - [reachability] : UNKNOWN / ONLINE / OFFLINE
  *   - [pingLatencyMs]: last `/health` round-trip, or null when offline
  *
- * SkippyTel lives on port **3003** on the tailnet host `skippy-pc`.
- * Change in lockstep with the SkippyTel-side port binding.
+ * SkippyTel lives on port **3003**.
+ * Emulator baseUrl: `http://10.0.2.2:3003` (AVD loopback to host).
+ * Real device baseUrl: `http://skippy-pc:3003` (Tailscale MagicDNS).
  */
 class SkippyTelClient(private val baseUrl: String) {
 
@@ -100,6 +102,152 @@ class SkippyTelClient(private val baseUrl: String) {
     }
 
     /**
+     * Parsed `GET /bilby/status` response.
+     *
+     * [nowPlaying] is the track currently active (deck that is playing, or
+     * most recently loaded if nothing is actively playing). Null when Bilby
+     * has no source available (Mac offline + Drive not configured).
+     */
+    data class BilbyStatus(
+        val source: String,           // "traktor" | "drive" | "none"
+        val traktorAlive: Boolean,
+        val playingDeck: String?,     // "a" | "b" | null
+        val nowPlaying: TrackInfo?,   // currently playing track
+        val deckA: TrackInfo?,
+        val deckB: TrackInfo?,
+    )
+
+    data class TrackInfo(
+        val title: String,
+        val artist: String,
+    )
+
+    /**
+     * GET `/bilby/status`. Blocking — call from [Dispatchers.IO].
+     *
+     * Returns null on any failure (SkippyTel unreachable, no source active, etc.).
+     */
+    fun getBilbyStatus(): BilbyStatus? {
+        val request = Request.Builder().url("$baseUrl/bilby/status").build()
+        return try {
+            healthClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                val raw = response.body?.string() ?: return null
+                val obj = org.json.JSONObject(raw)
+
+                fun parseTrack(key: String): TrackInfo? {
+                    val sub = obj.optJSONObject(key) ?: return null
+                    val title  = sub.optString("title").takeIf { it.isNotEmpty() } ?: return null
+                    val artist = sub.optString("artist", "")
+                    return TrackInfo(title, artist)
+                }
+
+                val loaded  = obj.optJSONObject("loaded")
+                val deckA   = loaded?.let { parseTrackFromObj(it.optJSONObject("a")) }
+                val deckB   = loaded?.let { parseTrackFromObj(it.optJSONObject("b")) }
+                val nowJson = obj.optJSONObject("now_playing")
+                val now     = nowJson?.let { parseTrackFromObj(it) }
+
+                BilbyStatus(
+                    source       = obj.optString("source", "none"),
+                    traktorAlive = obj.optBoolean("traktor_alive", false),
+                    playingDeck  = obj.optString("playing_deck").takeIf { it.isNotEmpty() },
+                    nowPlaying   = now,
+                    deckA        = deckA,
+                    deckB        = deckB,
+                )
+            }
+        } catch (_: Exception) { null }
+    }
+
+    private fun parseTrackFromObj(obj: org.json.JSONObject?): TrackInfo? {
+        obj ?: return null
+        val title = obj.optString("title").takeIf { it.isNotEmpty() } ?: return null
+        return TrackInfo(title = title, artist = obj.optString("artist", ""))
+    }
+
+    /**
+     * GET `/services`. Blocking — call from [Dispatchers.IO].
+     *
+     * Returns the live SkippyTel service manifest so the app can:
+     *   - Register dynamic voice triggers in [KeywordScanner]
+     *   - Show available services in the UI
+     *
+     * Returns null on any failure (unreachable, non-200, malformed body).
+     */
+    fun getServices(): List<ServiceManifest>? {
+        val request = Request.Builder().url("$baseUrl/services").build()
+        return try {
+            healthClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                val raw  = response.body?.string() ?: return null
+                val root = JSONObject(raw)
+                val arr  = root.optJSONArray("services") ?: return emptyList()
+                List(arr.length()) { i -> ServiceManifest.fromJson(arr.getJSONObject(i)) }
+            }
+        } catch (_: Exception) { null }
+    }
+
+    /**
+     * POST `/bilby/next`. Blocking — call from [Dispatchers.IO].
+     * Tells Bilby to advance to the next track. Returns true on success.
+     */
+    fun postBilbyNext(): Boolean {
+        val body = "".toRequestBody(jsonMedia)
+        val request = Request.Builder()
+            .url("$baseUrl/bilby/next")
+            .post(body)
+            .build()
+        return try {
+            healthClient.newCall(request).execute().use { it.isSuccessful }
+        } catch (_: Exception) { false }
+    }
+
+    /**
+     * Parsed `POST /translate/text` response.
+     *
+     * [detectedLang] is an ISO-639-1 code ("en", "es", "fr", …).
+     * [englishText] is the English translation (same as input when already English).
+     */
+    data class TranslateTextReply(
+        val detectedLang: String,
+        val englishText: String,
+    )
+
+    /**
+     * POST `/translate/text`. Blocking — call from [Dispatchers.IO].
+     *
+     * Uses Gemini on SkippyTel to detect the language of [text] and translate
+     * to English. Returns null on any failure (unreachable, non-200, malformed).
+     *
+     * Fast path on SkippyTel: pure-ASCII input is returned immediately without
+     * a Gemini call, so English speech never touches the LLM.
+     */
+    fun translateText(text: String, hintLang: String? = null): TranslateTextReply? {
+        val payload = JSONObject().apply {
+            put("text", text)
+            if (hintLang != null) put("hint_lang", hintLang)
+        }
+        val body = payload.toString().toRequestBody(jsonMedia)
+        val request = Request.Builder()
+            .url("$baseUrl/translate/text")
+            .post(body)
+            .build()
+        return try {
+            intentClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                val raw = response.body?.string() ?: return null
+                val obj = JSONObject(raw)
+                TranslateTextReply(
+                    detectedLang = obj.optString("detected_lang", "unknown"),
+                    englishText  = obj.optString("english_text", text),
+                )
+            }
+        } catch (_: IOException) { null }
+        catch (_: org.json.JSONException) { null }
+    }
+
+    /**
      * Parsed `POST /intent/unmatched` response.
      *
      * Extends SkippyDroid's equivalent with [latencyMs] + [rawJson]
@@ -113,6 +261,8 @@ class SkippyTelClient(private val baseUrl: String) {
         val tier: String?,
         val latencyMs: Long,
         val rawJson: String?,
+        val imageBase64: String? = null,  // base64 PNG data URL from SD sentinel
+        val imagePrompt: String? = null,  // SD prompt that produced the image
     )
 
     /**
@@ -155,11 +305,13 @@ class SkippyTelClient(private val baseUrl: String) {
                 val reply = obj.optString("reply", "")
                 if (reply.isEmpty()) return null
                 IntentReply(
-                    reply = reply,
-                    speak = obj.optString("speak").takeIf { it.isNotEmpty() },
-                    tier  = obj.optString("tier").takeIf { it.isNotEmpty() },
-                    latencyMs = elapsed,
-                    rawJson = raw,
+                    reply       = reply,
+                    speak       = obj.optString("speak").takeIf { it.isNotEmpty() },
+                    tier        = obj.optString("tier").takeIf { it.isNotEmpty() },
+                    latencyMs   = elapsed,
+                    rawJson     = raw,
+                    imageBase64 = obj.optString("image_b64").takeIf { it.isNotEmpty() },
+                    imagePrompt = obj.optString("image_prompt").takeIf { it.isNotEmpty() },
                 )
             }
         } catch (_: IOException) {

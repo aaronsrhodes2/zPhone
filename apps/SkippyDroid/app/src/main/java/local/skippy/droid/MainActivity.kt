@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import local.skippy.droid.BuildConfig
 import local.skippy.droid.compositor.Compositor
+import local.skippy.droid.compositor.GlassesDisplayEngine
 import local.skippy.droid.compositor.GlassesPresentation
 import local.skippy.droid.compositor.HudPalette
 import local.skippy.droid.layers.CameraPassthrough
@@ -35,6 +36,7 @@ import local.skippy.droid.features.coordinates.CoordinatesModule
 import local.skippy.droid.features.navigation.NavigationEngine
 import local.skippy.droid.features.navigation.NavigationModule
 import local.skippy.droid.features.notifications.NotificationModule
+import local.skippy.droid.features.services.ServiceRegistry
 import local.skippy.droid.features.services.ServicesPanelModule
 import local.skippy.droid.features.sidebars.LeftBarModule
 import local.skippy.droid.features.sidebars.RightBarModule
@@ -59,9 +61,9 @@ import kotlinx.coroutines.withContext
 class MainActivity : ComponentActivity() {
 
     // Tailscale address of the Skippy Tel Network PC.
-    // SkippyTel runs on port 3003 (separate service from the monorepo's
-    // flask-api on 5001). MagicDNS resolves `skippy-pc` inside the tailnet.
-    private val pcUrl = "http://skippy-pc:3003"
+    // Emulator lane uses port 3004; real phone uses 3003. Change in lockstep
+    // with SkippyTel-side port binding. MagicDNS resolves `skippy-pc` on tailnet.
+    private val pcUrl = "http://skippy-pc:3004"
 
     private lateinit var device: DeviceLayer
     private lateinit var transport: TransportLayer
@@ -101,6 +103,9 @@ class MainActivity : ComponentActivity() {
      */
     private var mockPassthrough: MockPassthroughView? = null
 
+    /** SkippyTel live service manifest — polls GET /services every 60s. */
+    private lateinit var serviceRegistry: ServiceRegistry
+
     /** Session 9 — non-speech per-ear chime primitive (confirm / error / notify). */
     private lateinit var sound: SoundLayer
 
@@ -109,6 +114,14 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var displayManager: DisplayManager
     private var glassesPresentation: GlassesPresentation? = null
+
+    /**
+     * Glasses display mode + shading state. Mutated from voice-intent handlers
+     * ("fullscreen", "hud", "shades", "eyes open", "I'm listening"). Observable
+     * via Compose mutableStateOf — Compositor recomposes automatically on change.
+     * Survives phone rotation because SkippyDroid uses moveTaskToBack(true).
+     */
+    private val glassesDisplay = GlassesDisplayEngine()
 
     /**
      * Observable mirror of `glassesPresentation != null`. The phone-mirror
@@ -166,6 +179,17 @@ class MainActivity : ComponentActivity() {
         // list below can include it at HudZone.Viewport.
         passthroughHost = PassthroughHost(applicationContext, glassesLayer, cmd)
 
+        // Service discovery — polls SkippyTel GET /services every 60s.
+        // Uses pcUrl (real phone via Tailscale) or 10.0.2.2:3003 for emulator.
+        val serviceUrl = if (pcUrl.contains("skippy-pc")) pcUrl else "http://10.0.2.2:3003"
+        serviceRegistry = ServiceRegistry(serviceUrl).also { it.start() }
+
+        // Persist the resolved URL so the Service Grid Widget can reach SkippyTel
+        // without needing the Activity to be running.
+        getSharedPreferences("skippy_prefs", MODE_PRIVATE).edit()
+            .putString("skippytel_url", serviceUrl)
+            .apply()
+
         modules = listOf(
             ClockModule(),
             CompassModule(device),
@@ -186,8 +210,9 @@ class MainActivity : ComponentActivity() {
             TeleprompterModule(teleprompter),
             // Session 7b — Viewport host for mounted passthrough apps.
             passthroughHost,
-            // Session 11e — TopStart panel listing registered passthrough views.
-            ServicesPanelModule(passthroughHost),
+            // Session 11e — TopStart panel listing registered passthrough views
+            // plus live SkippyTel services from the manifest.
+            ServicesPanelModule(passthroughHost, serviceRegistry),
         )
 
         // Ask for CAMERA now. If already granted, PassthroughCamera opens as soon as
@@ -325,8 +350,14 @@ class MainActivity : ComponentActivity() {
     private fun showGlasses(display: android.view.Display) {
         Log.d("Local.Skippy", "showGlasses: displayId=${display.displayId} name=${display.name}")
         glassesPresentation?.dismiss()
-        glassesPresentation = GlassesPresentation(this, display, modules, passthrough, contextEngine)
-            .also { it.show() }
+        glassesPresentation = GlassesPresentation(
+            activity      = this,
+            display       = display,
+            modules       = modules,
+            passthrough   = passthrough,
+            contextEngine = contextEngine,
+            displayEngine = glassesDisplay,
+        ).also { it.show() }
         glassesAttached = true
         Log.d("Local.Skippy", "showGlasses: presentation shown")
     }
@@ -537,6 +568,56 @@ class MainActivity : ComponentActivity() {
             sound.confirm()
         }
 
+        // ── Glasses display modes ───────────────────────────────────────────
+        // Five voice keywords control the glasses display independently of
+        // which phone app is in the foreground. SkippyDroid stays alive via
+        // moveTaskToBack so GlassesPresentation keeps rendering.
+
+        d.register(
+            id          = "local.skippy.glasses.fullscreen",
+            phrases     = listOf("fullscreen", "go fullscreen"),
+            description = "Glasses: hide HUD chrome, service fills the full display",
+        ) {
+            glassesDisplay.mode = GlassesDisplayEngine.Mode.FULLSCREEN
+            sound.confirm()
+        }
+
+        d.register(
+            id          = "local.skippy.glasses.hud",
+            phrases     = listOf("hud mode", "back to hud", "hud"),
+            description = "Glasses: restore HUD chrome around the service viewport",
+        ) {
+            glassesDisplay.mode = GlassesDisplayEngine.Mode.HUD
+            sound.confirm()
+        }
+
+        d.register(
+            id          = "local.skippy.glasses.shades",
+            phrases     = listOf("put on shades", "shades"),
+            description = "Glasses: darken display with shading overlay",
+        ) {
+            glassesDisplay.shaded = true
+            sound.confirm()
+        }
+
+        d.register(
+            id          = "local.skippy.glasses.eyes_open",
+            phrases     = listOf("eyes open", "shades off"),
+            description = "Glasses: remove shading overlay",
+        ) {
+            glassesDisplay.shaded = false
+            sound.confirm()
+        }
+
+        d.register(
+            id          = "local.skippy.glasses.listening",
+            phrases     = listOf("i'm listening", "i am listening"),
+            description = "Glasses: clear shading and activate voice recognizer",
+        ) {
+            glassesDisplay.shaded = false
+            if (!voice.isListening) voice.start()
+        }
+
         // ── inventory / help ────────────────────────────────────────────────
         // The dispatcher owns the reserved verbs; we just observe the request.
         // Phase 1: log the live verb set so the Captain sees it in adb logcat.
@@ -682,10 +763,15 @@ class MainActivity : ComponentActivity() {
     // which is why this used to flip flop between landscape and portrait only.
     //
     // Slot map:
-    //   ROTATION_0          USB at bottom  natural portrait        → SkippyChat
-    //   SLOT_HUD_ROTATION   USB on right   one landscape           → THIS app (stay)
-    //   SLOT_CHROME_ROTATION USB on left   the other landscape     → Chrome
-    //   ROTATION_180        USB at top     upside-down portrait    → Android home
+    //   ROTATION_0            USB at bottom  natural portrait    → SkippyChat
+    //   SLOT_HUD_ROTATION     USB on right   landscape           → THIS app (stay)
+    //   SLOT_BROWSER_ROTATION USB at top     upside-down         → Browser (Chrome)
+    //   SLOT_SERVICES_ROTATION USB on left   landscape           → Service selector
+    //
+    // Service selector (ROTATION_270 / USB-left): Captain rotates left to browse
+    // registered passthrough producers (DJ Block Planner, etc.) and mount one
+    // fullscreen. Launches `local.skippy.services` when installed; stays put if
+    // that package is absent (graceful stub until the app exists).
     //
     // SLOT_HUD_ROTATION value below pins which landscape rotation puts USB on
     // the right — observed empirically from `adb emu rotate` on the SkippyS23
@@ -734,11 +820,11 @@ class MainActivity : ComponentActivity() {
     private fun maybeHandoff() {
         val rotation = display?.rotation ?: windowManager.defaultDisplay.rotation
         when (rotation) {
-            SLOT_HUD_ROTATION    -> return                       // we ARE the HUD slot
-            Surface.ROTATION_0   -> launchSibling(SKIPPY_CHAT_PKG, "Chat")
-            SLOT_CHROME_ROTATION -> launchChrome()
-            Surface.ROTATION_180 -> launchHome()
-            else                 -> Log.w("Local.Skippy", "rotation=$rotation has no slot; staying")
+            SLOT_HUD_ROTATION      -> return                          // we ARE the HUD slot
+            Surface.ROTATION_0     -> launchSibling(SKIPPY_CHAT_PKG, "Chat")
+            SLOT_BROWSER_ROTATION  -> launchBrowser()
+            SLOT_SERVICES_ROTATION -> launchServiceSelector()
+            else                   -> Log.w("Local.Skippy", "rotation=$rotation has no slot; staying")
         }
     }
 
@@ -758,33 +844,39 @@ class MainActivity : ComponentActivity() {
         moveTaskToBack(true)
     }
 
-    private fun launchChrome() {
-        // Try real Chrome first (Captain said "Chrome Browser" specifically),
-        // fall back to ACTION_VIEW so on hosts without Chrome installed we
-        // open whatever browser Android picks instead of failing silently.
+    private fun launchBrowser() {
+        // USB-top (ROTATION_180) = browser slot.
+        // Try real Chrome first; fall back to ACTION_VIEW for emulator/other hosts.
         val chrome = packageManager.getLaunchIntentForPackage("com.android.chrome")
         val intent = chrome ?: Intent(Intent.ACTION_VIEW, Uri.parse("about:blank"))
         intent.addFlags(
             Intent.FLAG_ACTIVITY_NEW_TASK or
             Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
         )
-        Log.d("Local.Skippy", "rotation → handing off to ${if (chrome != null) "Chrome" else "system browser"}")
+        Log.d("Local.Skippy", "rotation → browser slot (${if (chrome != null) "Chrome" else "system browser"})")
         try {
             startActivity(intent)
             crossfadeOut()
             moveTaskToBack(true)
         } catch (e: android.content.ActivityNotFoundException) {
-            Log.w("Local.Skippy", "no browser available for Chrome slot; staying", e)
+            Log.w("Local.Skippy", "no browser available for browser slot; staying", e)
         }
     }
 
-    private fun launchHome() {
-        val home = Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_HOME)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    private fun launchServiceSelector() {
+        // USB-left (ROTATION_270) = service selector slot.
+        // Launches local.skippy.services when installed; that app shows the
+        // registered passthrough producers (DJ Block Planner, etc.) and lets
+        // Captain mount one fullscreen on the glasses display.
+        // Stub: stays put gracefully until the app is built.
+        val intent = packageManager.getLaunchIntentForPackage(SKIPPY_SERVICES_PKG)
+        if (intent == null) {
+            Log.i("Local.Skippy", "service selector ($SKIPPY_SERVICES_PKG) not installed; staying in HUD")
+            return
         }
-        Log.d("Local.Skippy", "rotation → handing off to Android home (USB-top slot)")
-        startActivity(home)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+        Log.d("Local.Skippy", "rotation → service selector")
+        startActivity(intent)
         crossfadeOut()
         moveTaskToBack(true)
     }
@@ -802,16 +894,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private companion object {
-        const val SKIPPY_CHAT_PKG = "local.skippy.chat"
+        const val SKIPPY_CHAT_PKG     = "local.skippy.chat"
+        const val SKIPPY_SERVICES_PKG = "local.skippy.services"  // not yet built
 
-        // USB-RIGHT (Captain's intent: HUD slot). Observed value from
-        // `adb emu rotate` on the SkippyS23 AVD. The S23's natural orientation
-        // is portrait with USB at the bottom; rotating the device CCW puts USB
-        // on the right and the display compensates by rotating its content
-        // 90° CW — reported as ROTATION_90.
-        const val SLOT_HUD_ROTATION = Surface.ROTATION_90
-
-        // USB-LEFT (Chrome slot). The other landscape rotation.
-        const val SLOT_CHROME_ROTATION = Surface.ROTATION_270
+        // Four-slot rotation doctrine (must agree with SkippyChat's MainActivity):
+        //   ROTATION_0   USB-down  → SkippyChat
+        //   ROTATION_90  USB-right → SkippyDroid HUD  (this app)
+        //   ROTATION_180 USB-up    → Browser
+        //   ROTATION_270 USB-left  → Service selector (local.skippy.services)
+        //
+        // Values observed empirically on SkippyS23 AVD via `adb emu rotate`.
+        // Flip HUD/SERVICES pair if real S23 hardware disagrees.
+        const val SLOT_HUD_ROTATION      = Surface.ROTATION_90
+        const val SLOT_BROWSER_ROTATION  = Surface.ROTATION_180
+        const val SLOT_SERVICES_ROTATION = Surface.ROTATION_270
     }
 }

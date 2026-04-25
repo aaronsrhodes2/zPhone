@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SkippyDroid Service Grid Widget metadata.
+  Displayed in the launcher widget picker.
+
+  minWidth/minHeight are advisory — the launcher allocates the nearest
+  grid cell multiple.  4 × 3 cells (296 × 222 dp) fills the Captain's
+  yellow-square zone on the home screen.
+-->
+<appwidget-provider
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="180dp"
+    android:updatePeriodMillis="300000"
+    android:initialLayout="@layout/widget_service_grid"
+    android:widgetCategory="home_screen"
+    android:description="@string/widget_description"
+    android:resizeMode="horizontal|vertical"
+    android:previewImage="@drawable/ic_launcher" />
