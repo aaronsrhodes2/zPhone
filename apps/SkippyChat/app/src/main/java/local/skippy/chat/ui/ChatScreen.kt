@@ -163,11 +163,16 @@ fun ChatScreen(
                 viewModel.activateService(result.serviceId)
                 val manifest = viewModel.getManifest(result.serviceId)
                 when {
-                    // 1. Companion Android app — launch it
+                    // 1. Companion Android app — launch with context-aware extras
                     manifest?.companionApp != null -> {
-                        context.packageManager.getLaunchIntentForPackage(manifest.companionApp)
-                            ?.apply { addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }
-                            ?.let { context.startActivity(it) }
+                        val launchIntent = buildCompanionIntent(
+                            context        = context,
+                            companionApp   = manifest.companionApp,
+                            serviceId      = result.serviceId,
+                            triggerPhrase  = result.triggerPhrase,
+                        )
+                        try { context.startActivity(launchIntent) }
+                        catch (_: android.content.ActivityNotFoundException) { /* app not installed */ }
                     }
                     // 2. External service with a direct Tailscale URL — open in browser
                     // (covers Bilby web UI, future Mac-side services, etc.)
@@ -385,6 +390,61 @@ private fun BannerRow(client: SkippyTelClient) {
             .padding(horizontal = 16.dp, vertical = 6.dp),
     ) {
         Text(text = label, color = color, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+    }
+}
+
+// ── Companion app launch ──────────────────────────────────────────────────
+
+/**
+ * Build a launch Intent for a companion Android app, enriching it with
+ * context-aware extras based on [serviceId] and the raw [triggerPhrase].
+ *
+ * Generic path: use the standard LAUNCHER intent (no extras).
+ * Music service: use [local.skippy.music.PLAY] action with mode / prompt
+ *   extras derived from the trigger phrase so the player starts the right
+ *   session type immediately (DJ, playlist, single).
+ */
+private fun buildCompanionIntent(
+    context: android.content.Context,
+    companionApp: String,
+    serviceId: String,
+    triggerPhrase: String,
+): android.content.Intent {
+    val flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
+                android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
+
+    return when (serviceId) {
+        "music" -> {
+            val phrase = triggerPhrase.lowercase()
+            // Infer mode from the trigger phrase
+            val mode = when {
+                "playlist" in phrase || "play some" in phrase ||
+                "play music" in phrase || "something like" in phrase -> "playlist"
+                "play" in phrase && ("by" in phrase || "song" in phrase) -> "single"
+                else -> "dj"
+            }
+            // For playlist, extract the description after "play [some/music/something like]"
+            val prompt = when {
+                mode == "playlist" -> Regex(
+                    "(?:play\\s+(?:some|music|something\\s+like|me\\s+some)\\s+)(.*)",
+                    RegexOption.IGNORE_CASE
+                ).find(phrase)?.groupValues?.getOrNull(1)?.trim() ?: ""
+                else -> ""
+            }
+            android.content.Intent("local.skippy.music.PLAY").apply {
+                setPackage(companionApp)
+                addFlags(flags)
+                putExtra("mode",           mode)
+                putExtra("prompt",         prompt)
+                putExtra("trigger_phrase", triggerPhrase)
+            }
+        }
+        // Default: plain launcher intent
+        else -> context.packageManager.getLaunchIntentForPackage(companionApp)
+            ?: android.content.Intent(android.content.Intent.ACTION_MAIN).apply {
+                setPackage(companionApp)
+                addFlags(flags)
+            }
     }
 }
 
