@@ -71,6 +71,14 @@ import local.skippy.droid.layers.FeatureModule
  * mirror swaps in a camera-preview backdrop when glasses are NOT attached —
  * the phone then acts as a stand-in viewfinder, showing what the Captain
  * would see through the lenses with the HUD composited on top.
+ *
+ * [displayEngine] drives the two glasses-only rendering axes:
+ *   - [GlassesDisplayEngine.Mode.HUD]        — current default; all chrome zones visible.
+ *   - [GlassesDisplayEngine.Mode.FULLSCREEN] — Pass 3 (chrome) skipped; Viewport modules
+ *     expand to fill the full 1920×1200 canvas.
+ *   - [GlassesDisplayEngine.shaded]          — final overlay pass paints [HudPalette.ShadingOverlay].
+ * Null (default) keeps the original HUD behavior — safe for the phone mirror
+ * and any call sites that don't need mode switching.
  */
 @Composable
 fun Compositor(
@@ -79,8 +87,14 @@ fun Compositor(
     isGlasses: Boolean = false,
     letterboxColor: Color = HudPalette.Black,
     backdrop: @Composable BoxScope.() -> Unit = { DefaultBlackBackdrop() },
+    displayEngine: GlassesDisplayEngine? = null,
 ) {
     val mode = context.currentMode   // mutableStateOf — drives recomposition on mode change
+
+    // Read glasses display mode (null → treat as HUD for non-glasses callers).
+    val glassesMode   = displayEngine?.mode   ?: GlassesDisplayEngine.Mode.HUD
+    val glassesShaded = displayEngine?.shaded ?: false
+    val isFullscreen  = glassesMode == GlassesDisplayEngine.Mode.FULLSCREEN
 
     val active = modules
         .filter { it.enabled }
@@ -137,44 +151,71 @@ fun Compositor(
             // this, so the Fullscreen AR canvas from pass 1 fills it naturally.
             // Phase 2: mounted passthrough apps (DJ Block Planner, etc.) will
             // land here via a WebView host module.
+            //
+            // FULLSCREEN mode: the Viewport expands to fill the full 1920×1200
+            // canvas (no sizeIn clamp), giving the mounted service the entire
+            // display with no chrome around it.
             val viewportModules = active.filter { it.zone == HudZone.Viewport }
             if (viewportModules.isNotEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    val budget = HudZone.Viewport.budget
-                    Box(
-                        modifier = Modifier.sizeIn(
-                            maxWidth = budget.width ?: 1540.dp,
-                            maxHeight = budget.height ?: 960.dp,
-                        ),
-                    ) {
+                if (isFullscreen) {
+                    // Fullscreen — service fills the whole canvas.
+                    Box(modifier = Modifier.fillMaxSize()) {
                         viewportModules.forEach { mod ->
                             if (isGlasses) mod.GlassesOverlay() else mod.Overlay()
+                        }
+                    }
+                } else {
+                    // HUD mode — service constrained to the 1540×960 Viewport budget.
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        val budget = HudZone.Viewport.budget
+                        Box(
+                            modifier = Modifier.sizeIn(
+                                maxWidth  = budget.width  ?: 1540.dp,
+                                maxHeight = budget.height ?: 960.dp,
+                            ),
+                        ) {
+                            viewportModules.forEach { mod ->
+                                if (isGlasses) mod.GlassesOverlay() else mod.Overlay()
+                            }
                         }
                     }
                 }
             }
 
             // ── Pass 3: Chrome zones (6 text + 2 symbology sidebars) ────────
-            // One positioning Box per zone. Modules sharing a zone stack
-            // vertically in zOrder.
-            for (zone in CHROME_ZONES) {
-                val zoneModules = active.filter { it.zone == zone }
-                if (zoneModules.isEmpty()) continue
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(zone.edgePadding),
-                    contentAlignment = zone.contentAlignment,
-                ) {
-                    Column(horizontalAlignment = zone.columnAlignment) {
-                        zoneModules.forEach { mod ->
-                            if (isGlasses) mod.GlassesOverlay() else mod.Overlay()
+            // Skipped entirely in FULLSCREEN mode — no HUD chrome around the
+            // service. One positioning Box per zone in HUD mode.
+            if (!isFullscreen) {
+                for (zone in CHROME_ZONES) {
+                    val zoneModules = active.filter { it.zone == zone }
+                    if (zoneModules.isEmpty()) continue
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(zone.edgePadding),
+                        contentAlignment = zone.contentAlignment,
+                    ) {
+                        Column(horizontalAlignment = zone.columnAlignment) {
+                            zoneModules.forEach { mod ->
+                                if (isGlasses) mod.GlassesOverlay() else mod.Overlay()
+                            }
                         }
                     }
                 }
+            }
+
+            // ── Pass 4: Shading overlay ──────────────────────────────────────
+            // Painted last so it sits on top of everything. Activated by
+            // "shades" / cleared by "eyes open" or "I'm listening".
+            if (glassesShaded) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(HudPalette.ShadingOverlay),
+                )
             }
         }
     }

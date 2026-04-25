@@ -7,13 +7,18 @@
   from apps/SkippyDroid — the two apps share one server.
 
   - skippy-pc                 — MagicDNS name of the inference PC
+  - 100.122.71.14             — skippy-pc Tailscale IP (stable; run
+                                `tailscale ip -4` on skippy-pc to verify)
   - 100.64.0.0/10             — Tailscale CGNAT range (RFC 6598)
+                                NOTE: Android domain-config doesn't support
+                                CIDR notation; IPs must be listed individually.
   - 10.0.2.2                  — Android emulator's loopback to host (dev)
   - localhost                 — adb reverse port-forward target (dev)
 -->
 <network-security-config>
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">skippy-pc</domain>
+        <domain includeSubdomains="false">100.122.71.14</domain>
         <domain includeSubdomains="false">localhost</domain>
         <domain includeSubdomains="false">10.0.2.2</domain>
     </domain-config>

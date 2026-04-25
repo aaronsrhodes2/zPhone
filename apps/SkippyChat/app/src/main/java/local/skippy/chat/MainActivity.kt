@@ -1,16 +1,22 @@
 package local.skippy.chat
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.core.content.ContextCompat
+import local.skippy.chat.audio.SpeechInputEngine
 import local.skippy.chat.compositor.ChatPalette
 import local.skippy.chat.model.ChatViewModel
 import local.skippy.chat.transport.SkippyTelClient
@@ -19,28 +25,50 @@ import local.skippy.chat.transport.SkippyTelClient
  * Single-Activity SkippyChat host.
  *
  * Wires:
- *   - [SkippyTelClient] against `http://skippy-pc:3003` — tailnet
- *     MagicDNS hostname, plaintext allowed by the network-security
- *     config (Tailscale IS the auth).
+ *   - [SkippyTelClient] against `http://skippy-pc:3004` — tailnet MagicDNS.
  *   - [ChatViewModel] holding the in-memory scrollback.
+ *   - [SpeechInputEngine] for always-on STT via Android SpeechRecognizer.
  *   - [ChatScreen] as the sole Composable content.
  *
- * Lifecycle: health loop starts in `onStart`, stops in `onStop`.
- * The ViewModel lives for the Activity's full lifetime and is
- * deliberately NOT a real ViewModelProvider-backed thing — Phase 1
- * scrollback is process-scoped, not config-change-resilient.
+ * Hardware controls:
+ *   - Volume Down (single press) → toggle mic mute on [SpeechInputEngine].
+ *     The key event is consumed (returns true) so it doesn't change actual
+ *     media volume while acting as a mute switch.
  *
- * Orientation: the manifest declares `sensor` (not `portrait`) so we
- * receive `onConfigurationChanged` when the Captain rotates to
- * landscape — and use that as the signal to hand off to SkippyDroid
- * (glasses mirror). `configChanges` covers orientation so the activity
- * itself is NOT recreated on rotation; the scrollback survives the
- * round trip.
+ * Permissions:
+ *   RECORD_AUDIO is requested at runtime on first launch. If denied, STT
+ *   stays silent but everything else works normally.
  */
 class MainActivity : ComponentActivity() {
 
-    private val client = SkippyTelClient(baseUrl = "http://skippy-pc:3003")
-    private val viewModel = ChatViewModel(client)
+    // Tailscale IP of skippy-pc — works from both the emulator (which can't
+    // resolve MagicDNS hostnames) and a real S23 on any network.
+    // If the PC's Tailscale IP ever changes: `tailscale ip -4` on the PC.
+    private val client       = SkippyTelClient(baseUrl = "http://100.122.71.14:3003")
+    private val viewModel    = ChatViewModel(client)
+    private val speechEngine = SpeechInputEngine(this)
+
+    // Runtime permission launcher — requested once on first cold start.
+    private val requestMicPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                Log.d(TAG, "RECORD_AUDIO granted — starting speech engine")
+                speechEngine.start()
+            } else {
+                Log.w(TAG, "RECORD_AUDIO denied — STT disabled")
+            }
+        }
+
+    // SMS + Contacts permissions — requested once on first cold start.
+    // All three are needed: SEND_SMS to dispatch, RECEIVE_SMS for the
+    // BroadcastReceiver, READ_CONTACTS for name→number resolution.
+    private val requestSmsPermissions =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+            val send    = grants[Manifest.permission.SEND_SMS]    == true
+            val receive = grants[Manifest.permission.RECEIVE_SMS] == true
+            val contacts= grants[Manifest.permission.READ_CONTACTS] == true
+            Log.d(TAG, "SMS perms — send=$send receive=$receive contacts=$contacts")
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,44 +80,52 @@ class MainActivity : ComponentActivity() {
                 color = ChatPalette.Black,
             ) {
                 local.skippy.chat.ui.ChatScreen(
-                    viewModel = viewModel,
-                    client = client,
+                    viewModel    = viewModel,
+                    client       = client,
+                    speechEngine = speechEngine,
                 )
             }
         }
+
+        // Hot-deploy note: when Claude Code pushes a new APK via
+        //   adb shell am start -n .../MainActivity --es update_note "..."
+        // the message surfaces as the first SYSTEM bubble of the new session,
+        // confirming exactly what was changed and deployed.
+        intent.getStringExtra("update_note")
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { note -> viewModel.postSystemNote("⚡ $note") }
     }
 
     override fun onStart() {
         super.onStart()
         client.start()
+        startSpeechEngineIfPermitted()
+        requestSmsPermissionsIfNeeded()
     }
 
     override fun onStop() {
         super.onStop()
         client.stop()
+        speechEngine.stop()
     }
 
-    // ── Rotation handoff ──────────────────────────────────────────────────────
+    // ── Volume Down = mic mute toggle ─────────────────────────────────────
     //
-    // Mirror image of the logic in SkippyDroid's MainActivity. Captain's
-    // doctrine: rotation IS the launcher; each of the four rotations is its
-    // own slot. SkippyChat owns ROTATION_0 (USB at bottom, natural portrait).
-    // Anything else hands off:
+    // Volume Down is on the left side of the S23, easy to press blind.
+    // Single press toggles mute; we return true to consume the event so
+    // the system volume level is not changed.
     //
-    //   SLOT_HUD_ROTATION    USB on right    → SkippyDroid (HUD mirror)
-    //   SLOT_CHROME_ROTATION USB on left     → Chrome
-    //   ROTATION_180         USB at top      → Android home (reserved)
-    //
-    // The two SLOT_* constants must agree with SkippyDroid's MainActivity —
-    // change them in lockstep.
-    //
-    // `moveTaskToBack(true)` (rather than finish()) keeps the OkHttp client,
-    // health-loop coroutine, and ChatViewModel scrollback intact for when
-    // the Captain rotates back to portrait — far cheaper than rebuilding
-    // everything per flip.
-    //
-    // Checked on `onResume` (cold-launch-in-the-wrong-rotation, return from
-    // background) and `onConfigurationChanged` (live rotation while visible).
+    // Volume Up is left alone — use it normally for media / ringer volume.
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            speechEngine.isMuted = !speechEngine.isMuted
+            Log.d(TAG, "mic mute → ${speechEngine.isMuted}")
+            return true   // consumed — don't change volume
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    // ── Rotation handoff ──────────────────────────────────────────────────
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         maybeHandoff()
@@ -104,75 +140,84 @@ class MainActivity : ComponentActivity() {
     private fun maybeHandoff() {
         val rotation = display?.rotation ?: windowManager.defaultDisplay.rotation
         when (rotation) {
-            android.view.Surface.ROTATION_0   -> return                       // we ARE the Chat slot
-            SLOT_HUD_ROTATION                 -> launchSibling(SKIPPY_DROID_PKG, "HUD")
-            SLOT_CHROME_ROTATION              -> launchChrome()
-            android.view.Surface.ROTATION_180 -> launchHome()
-            else                              -> Log.w(TAG, "rotation=$rotation has no slot; staying")
+            android.view.Surface.ROTATION_0 -> return
+            SLOT_HUD_ROTATION               -> launchSibling(SKIPPY_DROID_PKG, "HUD")
+            SLOT_BROWSER_ROTATION           -> launchBrowser()
+            SLOT_SERVICES_ROTATION          -> launchServiceSelector()
+            else -> Log.w(TAG, "rotation=$rotation has no slot; staying")
         }
     }
 
     private fun launchSibling(pkg: String, label: String) {
-        val launch = packageManager.getLaunchIntentForPackage(pkg)
-        if (launch == null) {
-            Log.i(TAG, "rotation slot wants $pkg ($label) but it's not installed; staying")
+        val launch = packageManager.getLaunchIntentForPackage(pkg) ?: run {
+            Log.i(TAG, "rotation slot wants $pkg ($label) but not installed; staying")
             return
         }
         Log.d(TAG, "rotation → handing off to $pkg ($label)")
-        launch.addFlags(
-            Intent.FLAG_ACTIVITY_NEW_TASK or
-            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-        )
+        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
         startActivity(launch)
         crossfadeOut()
         moveTaskToBack(true)
     }
 
-    private fun launchChrome() {
+    private fun launchBrowser() {
         val chrome = packageManager.getLaunchIntentForPackage("com.android.chrome")
         val intent = chrome ?: Intent(Intent.ACTION_VIEW, Uri.parse("about:blank"))
-        intent.addFlags(
-            Intent.FLAG_ACTIVITY_NEW_TASK or
-            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-        )
-        Log.d(TAG, "rotation → handing off to ${if (chrome != null) "Chrome" else "system browser"}")
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+        Log.d(TAG, "rotation → browser slot")
         try {
             startActivity(intent)
             crossfadeOut()
             moveTaskToBack(true)
         } catch (e: android.content.ActivityNotFoundException) {
-            Log.w(TAG, "no browser available for Chrome slot; staying", e)
+            Log.w(TAG, "no browser for browser slot; staying", e)
         }
     }
 
-    private fun launchHome() {
-        val home = Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_HOME)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    private fun launchServiceSelector() {
+        val intent = packageManager.getLaunchIntentForPackage(SKIPPY_SERVICES_PKG) ?: run {
+            Log.i(TAG, "service selector ($SKIPPY_SERVICES_PKG) not installed; staying")
+            return
         }
-        Log.d(TAG, "rotation → handing off to Android home (USB-top slot)")
-        startActivity(home)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+        Log.d(TAG, "rotation → service selector")
+        startActivity(intent)
         crossfadeOut()
         moveTaskToBack(true)
     }
 
     @Suppress("DEPRECATION")
     private fun crossfadeOut() {
-        // ~200ms crossfade across the singleTask handoff — replaces the older
-        // (0,0) instant cut for a smoother rotation experience. See
-        // SkippyDroid.MainActivity.crossfadeOut for full rationale.
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
     }
 
-    private companion object {
-        const val TAG = "Local.Skippy.Chat"
-        const val SKIPPY_DROID_PKG = "local.skippy.droid"
+    // ── Permission helpers ────────────────────────────────────────────────
 
-        // Must agree with SkippyDroid's MainActivity. Captain's intent:
-        // USB-right = HUD, USB-left = Chrome. Empirical observation on the
-        // SkippyS23 AVD via `adb emu rotate` locks the rotation values to
-        // these constants; flip them if real-hardware behavior diverges.
-        const val SLOT_HUD_ROTATION = android.view.Surface.ROTATION_90
-        const val SLOT_CHROME_ROTATION = android.view.Surface.ROTATION_270
+    private fun startSpeechEngineIfPermitted() {
+        when {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                    == PackageManager.PERMISSION_GRANTED -> speechEngine.start()
+            else -> requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    private fun requestSmsPermissionsIfNeeded() {
+        val needed = arrayOf(
+            Manifest.permission.SEND_SMS,
+            Manifest.permission.RECEIVE_SMS,
+            Manifest.permission.READ_CONTACTS,
+        ).filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (needed.isNotEmpty()) requestSmsPermissions.launch(needed.toTypedArray())
+    }
+
+    private companion object {
+        const val TAG                 = "Local.Skippy.Chat"
+        const val SKIPPY_DROID_PKG    = "local.skippy.droid"
+        const val SKIPPY_SERVICES_PKG = "local.skippy.services"
+        const val SLOT_HUD_ROTATION      = android.view.Surface.ROTATION_90
+        const val SLOT_BROWSER_ROTATION  = android.view.Surface.ROTATION_180
+        const val SLOT_SERVICES_ROTATION = android.view.Surface.ROTATION_270
     }
 }

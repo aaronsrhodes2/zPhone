@@ -73,4 +73,12 @@ object HudPalette {
      * named slot.
      */
     val MirrorLetterbox = Color(0xFF0044AA)
+
+    /**
+     * Shading overlay — painted as the final Compositor pass when
+     * [GlassesDisplayEngine.shaded] is true. ~70 % opaque black dims the
+     * real-world passthrough and all HUD layers beneath it. Captain engages
+     * with "shades" and clears with "eyes open" or "I'm listening".
+     */
+    val ShadingOverlay = Color(0xB3000000)
 }

@@ -3,6 +3,16 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!-- SMS send + receive -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.READ_SMS" />
+    <!-- Contact name → phone number resolution -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
 
     <!--
       Package visibility (Android 11+). SkippyChat resolves launch intents
@@ -59,6 +69,21 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+          SmsReceiver — receives incoming SMS and posts to the in-process
+          SharedFlow that ChatScreen collects. Priority 999 so we see the
+          message before lower-priority receivers (e.g. the default SMS app).
+          exported=false: no other app needs to send this intent to us.
+        -->
+        <receiver
+            android:name=".sms.SmsReceiver"
+            android:exported="false"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="999">
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
 
     </application>
 

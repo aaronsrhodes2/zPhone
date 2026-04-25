@@ -103,15 +103,26 @@ droid-run:     ## Build, install, launch, and stream filtered logs
 	    Local.Skippy.PhraseBiaser:* Local.Skippy.PassthroughServer:* \
 	    Local.Skippy.MockPassthrough:* AndroidRuntime:E *:S
 
-droid-bridge-register: ## Mac 127.0.0.1:47823 -> emulator :47823 (so Mac producers can register with SkippyDroid)
-	@adb forward tcp:47823 tcp:47823 && \
-	  echo "Mac producers can now POST to http://127.0.0.1:47823/passthrough/register" && \
-	  echo "(host:47823 -> emulator:47823 where SkippyDroid's NanoHTTPD is listening)"
+droid-bridge-register: ## Show DJ Organizer registration URL for Tailscale (no adb needed)
+	@echo "PassthroughServer binds 0.0.0.0:47823 and trusts Tailscale CGNAT (100.64.0.0/10)."
+	@echo "DJ Organizer on aarons-macbook-pro should POST to:"
+	@echo "  http://sdk-gphone64-x86_64:47823/passthrough/register  (MagicDNS)"
+	@echo "  http://100.122.32.113:47823/passthrough/register        (IP fallback)"
 
-droid-bridge-dj: ## Emulator 127.0.0.1:7334 -> Mac :7334 (so SkippyDroid can reach DJ Organizer's stream/manifest)
-	@adb reverse tcp:7334 tcp:7334 && \
-	  echo "Emulator can now reach DJ Organizer at http://127.0.0.1:7334" && \
-	  echo "(emulator:7334 -> host:7334 where the Mac DJ app is listening)"
+droid-bridge-dj: ## Show DJ Organizer stream URL for Tailscale (no adb needed)
+	@echo "aarons-macbook-pro is whitelisted in network_security_config.xml."
+	@echo "After DJ Organizer registers, SkippyDroid fetches streams from:"
+	@echo "  http://aarons-macbook-pro:7334/..."
+	@echo "No bridge needed — emulator reaches Mac directly over Tailscale."
+
+droid-bridge-skippy-tel: ## Windows portproxy :3004 -> :3003 + firewall (Tailscale emulator lane; run as Admin)
+	@powershell -Command " \
+	  netsh interface portproxy add v4tov4 listenport=3004 listenaddress=0.0.0.0 connectport=3003 connectaddress=127.0.0.1; \
+	  New-NetFirewallRule -DisplayName 'SkippyTel Emulator Lane' -Direction Inbound -Protocol TCP -LocalPort 3004 -Action Allow -Profile Any -ErrorAction SilentlyContinue; \
+	  Write-Host 'Port proxy active: 0.0.0.0:3004 -> 127.0.0.1:3003'; \
+	  Write-Host 'Firewall rule active: inbound TCP 3004 allowed'; \
+	  Write-Host 'Emulator can now reach SkippyTel via Tailscale at http://skippy-pc:3004' \
+	"
 
 droid-stop:    ## Force-stop SkippyDroid on device
 	adb shell am force-stop $(DROID_PKG)
@@ -129,10 +140,12 @@ droid-emu:     ## Start Galaxy S23 emulator (creates AVD on first run)
 	@if ! avdmanager list avd | grep -q "SkippyS23"; then \
 	  echo "Creating SkippyS23 AVD..." && \
 	  echo no | avdmanager create avd -n SkippyS23 \
-	    -k "system-images;android-34;google_apis;arm64-v8a" \
+	    -k "system-images;android-34;google_apis;x86_64" \
 	    -d "pixel_7_pro" --force; \
 	fi
-	emulator -avd SkippyS23 -gpu host -memory 4096 &
+	@echo "NOTE: Set your USB mic as the default Windows recording device BEFORE this step."
+	@echo "      Windows Sound settings → Input → choose USB mic → Set as default"
+	emulator -avd SkippyS23 -gpu host -memory 4096 -audio winaudio &
 
 droid-adb-connect: ## Connect to device over WiFi (usage: make droid-adb-connect IP=192.168.x.x)
 ifndef IP
@@ -211,9 +224,29 @@ droid-shot:    ## Screenshot the phone/emulator screen → /tmp/skippy-droid.png
 	@adb exec-out screencap -p > /tmp/skippy-droid.png && \
 	  echo "Saved /tmp/skippy-droid.png ($$(wc -c < /tmp/skippy-droid.png) bytes)"
 
-droid-shot-glasses: ## Screenshot the simulated glasses display (Overlay #1 in emulator) → /tmp/skippy-droid-glasses.png
-	@adb exec-out screencap -p -d 1 > /tmp/skippy-droid-glasses.png && \
-	  echo "Saved /tmp/skippy-droid-glasses.png ($$(wc -c < /tmp/skippy-droid-glasses.png) bytes)"
+droid-shot-glasses: ## Screenshot the simulated glasses display (Overlay #1, display ID 2) → /tmp/skippy-droid-glasses.png
+	@adb shell screencap -d 2 /sdcard/glasses.png && \
+	  adb pull /sdcard/glasses.png /tmp/skippy-droid-glasses.png && \
+	  adb shell rm /sdcard/glasses.png && \
+	  echo "Saved /tmp/skippy-droid-glasses.png"
+
+# ── VITURE glasses (emulator + physical glasses via SpaceWalker) ──────────────
+# Workflow:
+#   1. make glasses-setup    — creates virtual secondary display; SkippyDroid detects it
+#   2. make glasses-mirror   — opens scrcpy window showing the glasses display
+#   3. Drag the scrcpy window to the VITURE monitor, press F for fullscreen
+#   4. make glasses-teardown — removes virtual display when done
+
+glasses-setup: ## Create virtual 1920×1200 secondary display in emulator (triggers GlassesPresentation)
+	@adb -s emulator-5554 shell settings put global overlay_display_devices 1920x1200/240 && \
+	  echo "Virtual glasses display created. SkippyDroid will detect it within a few seconds."
+
+glasses-teardown: ## Remove virtual secondary display from emulator
+	@adb -s emulator-5554 shell settings delete global overlay_display_devices && \
+	  echo "Virtual glasses display removed."
+
+glasses-mirror: ## Mirror glasses display (ID 2) to a window — drag to VITURE monitor, press F for fullscreen
+	scrcpy -s emulator-5554 --display-id=2 --window-title="SkippyGlasses" --always-on-top
 
 # ── SkippyChat (Android, Phase 1 standalone) ─────────────────────────────────
 

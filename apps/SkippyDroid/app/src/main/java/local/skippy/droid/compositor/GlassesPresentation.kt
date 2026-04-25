@@ -38,7 +38,8 @@ class GlassesPresentation(
     display: Display,
     private val modules: List<FeatureModule>,
     private val passthrough: PassthroughCamera,
-    private val contextEngine: ContextEngine
+    private val contextEngine: ContextEngine,
+    private val displayEngine: GlassesDisplayEngine,
 ) : Presentation(activity, display) {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,7 +67,13 @@ class GlassesPresentation(
                     // Layer 6: HUD overlays — Compositor places each module into its
                     // declared HudZone. Do NOT wrap in an outer Box(contentAlignment = …)
                     // here; that would collapse every module into a single corner.
-                    Compositor(modules, contextEngine, isGlasses = true)
+                    // displayEngine drives HUD/FULLSCREEN mode and the shading overlay.
+                    Compositor(
+                        modules       = modules,
+                        context       = contextEngine,
+                        isGlasses     = true,
+                        displayEngine = displayEngine,
+                    )
                 }
             }
         }
