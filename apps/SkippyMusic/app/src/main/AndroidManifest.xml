@@ -7,6 +7,11 @@
       usesCleartextTraffic: local Tailscale traffic is HTTP (not HTTPS).
     -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Foreground service required to keep audio alive when app is in background -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Android 13+: show the media playback notification -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="false"
@@ -42,6 +47,20 @@
             </intent-filter>
 
         </activity>
+
+        <!--
+          MusicService: MediaSessionService that keeps ExoPlayer alive in the background.
+          The system binds to it via the MediaSessionService action so MediaController
+          (in MusicViewModel) can connect regardless of Activity lifecycle.
+        -->
+        <service
+            android:name=".MusicService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
 
     </application>
 

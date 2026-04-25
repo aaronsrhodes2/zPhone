@@ -50,6 +50,7 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.media3.exoplayer)
+    implementation(libs.media3.session)
     implementation(libs.okhttp)
 
     testImplementation(libs.junit)

@@ -1,12 +1,15 @@
 package local.skippy.music.model
 
 import android.app.Application
+import android.content.ComponentName
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import local.skippy.music.MusicService
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -22,17 +26,19 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * Owns the ExoPlayer instance and the /music/session API calls.
+ * Drives MusicService via MediaController.
  *
- * Session lifecycle:
- *   1. Activity calls [startSession] (new session) or [connectToExisting]
- *      (attach to whatever is already playing on SkippyTel).
- *   2. [loadAndPlay] feeds the stream URL into ExoPlayer.
- *   3. When ExoPlayer hits STATE_ENDED, [advance] is called automatically —
- *      SkippyTel picks the next DJ track and we switch streams.
- *   4. Controls: [togglePlayPause], [skip], [seekToStart], [previousTrack].
+ * ExoPlayer now lives in [MusicService] (a MediaSessionService) so playback
+ * survives when the Activity is finished. This ViewModel connects to it via
+ * [MediaController] and handles:
  *
- * ExoPlayer is released in [onCleared]. The ViewModel survives screen rotation.
+ *   - Starting / connecting to a SkippyTel music session (HTTP)
+ *   - Forwarding controls (play/pause, skip, seek, previous) to the controller
+ *   - Polling GET /music/session every 5 s for metadata (mode, queue, source)
+ *   - Tracking the previous track for ⏮ double-tap via [onMediaItemTransition]
+ *
+ * Auto-advance (track ended → fetch next) lives in [MusicService] so it works
+ * even when this ViewModel is cleared.
  */
 class MusicViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -51,21 +57,14 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
 
     // ── Exposed state ─────────────────────────────────────────────────────
 
-    private val _session = MutableStateFlow<MusicSession?>(null)
+    private val _session     = MutableStateFlow<MusicSession?>(null)
     val session: StateFlow<MusicSession?> = _session.asStateFlow()
 
     private val _playerState = MutableStateFlow<PlayerState>(PlayerState.Idle)
     val playerState: StateFlow<PlayerState> = _playerState.asStateFlow()
 
-    private val _error = MutableStateFlow<String?>(null)
+    private val _error       = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
-
-    /**
-     * The track that was playing before the current one.
-     * Populated whenever [advance] or [skip] switches tracks so the ⏮
-     * double-tap can reload it.
-     */
-    private var prevNowPlaying: NowPlaying? = null
 
     sealed class PlayerState {
         object Idle      : PlayerState()
@@ -75,46 +74,74 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         object Ended     : PlayerState()
     }
 
-    // ── ExoPlayer ─────────────────────────────────────────────────────────
+    // ── MediaController ───────────────────────────────────────────────────
 
-    val player: ExoPlayer = ExoPlayer.Builder(app).build().also { p ->
-        p.addListener(object : Player.Listener {
-            override fun onPlaybackStateChanged(state: Int) {
-                when (state) {
-                    Player.STATE_BUFFERING -> _playerState.value = PlayerState.Buffering
-                    Player.STATE_READY     -> _playerState.value =
-                        if (p.isPlaying) PlayerState.Playing else PlayerState.Paused
-                    Player.STATE_ENDED     -> {
-                        _playerState.value = PlayerState.Ended
-                        viewModelScope.launch { advance() }
-                    }
-                    Player.STATE_IDLE      -> _playerState.value = PlayerState.Idle
-                }
+    private var controller: MediaController? = null
+
+    // Pending action queued before the controller finishes connecting
+    private var pendingAction: (() -> Unit)? = null
+
+    // Track the NowPlaying that was current before the last item transition —
+    // used by ⏮ double-tap to go back one song.
+    private var prevNowPlaying: NowPlaying? = null
+    // The NowPlaying we last saw become current (updated on each transition)
+    private var currentNowPlaying: NowPlaying? = null
+
+    private val playerListener = object : Player.Listener {
+        override fun onPlaybackStateChanged(state: Int) {
+            _playerState.value = when (state) {
+                Player.STATE_BUFFERING -> PlayerState.Buffering
+                Player.STATE_READY     -> if (controller?.isPlaying == true) PlayerState.Playing else PlayerState.Paused
+                Player.STATE_ENDED     -> PlayerState.Ended
+                else                   -> PlayerState.Idle
             }
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                // Only update if we're not in a transient state
-                if (_playerState.value != PlayerState.Buffering &&
-                    _playerState.value != PlayerState.Ended) {
-                    _playerState.value =
-                        if (isPlaying) PlayerState.Playing else PlayerState.Paused
-                }
+        }
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (_playerState.value != PlayerState.Buffering && _playerState.value != PlayerState.Ended) {
+                _playerState.value = if (isPlaying) PlayerState.Playing else PlayerState.Paused
             }
-        })
+        }
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            // currentNowPlaying was the track before this transition → it becomes prev
+            prevNowPlaying    = currentNowPlaying
+            currentNowPlaying = mediaItem?.toNowPlaying()
+            // Update now-playing display from embedded metadata
+            currentNowPlaying?.let { np ->
+                _session.value = _session.value?.copy(nowPlaying = np)
+            }
+        }
     }
 
     init {
+        connectController()
         startPolling()
+    }
+
+    private fun connectController() {
+        val token = SessionToken(
+            getApplication(),
+            ComponentName(getApplication(), MusicService::class.java),
+        )
+        val future = MediaController.Builder(getApplication(), token).buildAsync()
+        future.addListener({
+            try {
+                controller = future.get()
+                controller?.addListener(playerListener)
+                Log.i(TAG, "MediaController connected")
+                pendingAction?.invoke()
+                pendingAction = null
+            } catch (e: Exception) {
+                Log.e(TAG, "MediaController connect failed: $e")
+                _error.value = "Couldn't connect to music service"
+            }
+        }, getApplication<Application>().mainExecutor)
     }
 
     // ── Session entry points ──────────────────────────────────────────────
 
     /**
-     * POST /music/session to start a new session, then begin playback.
-     *
-     * [mode]   — "dj" | "playlist" | "single"
-     * [prompt] — text description for playlist mode ("90s hip hop")
-     * [artist] — artist for single mode
-     * [title]  — track title for single mode
+     * POST /music/session to start a new session, then load the first track.
+     * If the controller isn't ready yet, queues the action.
      */
     fun startSession(
         mode: String   = "dj",
@@ -123,88 +150,82 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         title: String  = "",
     ) {
         _error.value = null
-        viewModelScope.launch {
-            val sess = withContext(Dispatchers.IO) {
-                postSession(buildBody(mode, prompt, artist, title))
+        val action: () -> Unit = {
+            viewModelScope.launch {
+                val sess = withContext(Dispatchers.IO) {
+                    postSession(buildBody(mode, prompt, artist, title))
+                }
+                if (sess != null) {
+                    _session.value = sess
+                    sess.nowPlaying?.let { loadAndPlay(it) }
+                } else {
+                    _error.value = "Couldn't start session — is SkippyTel running?"
+                }
             }
-            if (sess != null) {
-                _session.value = sess
-                sess.nowPlaying?.let { loadAndPlay(it.streamUrl) }
-            } else {
-                _error.value = "Couldn't start session — is SkippyTel running?"
-            }
+            Unit
         }
+        if (controller != null) action() else pendingAction = action
     }
 
     /**
-     * Connect to the existing session on SkippyTel (if any).
-     * If nothing is playing, auto-starts a DJ session.
+     * Attach to any active session on SkippyTel. If nothing is playing,
+     * auto-starts a DJ session.
      */
     fun connectToExisting() {
         _error.value = null
-        viewModelScope.launch {
-            val sess = withContext(Dispatchers.IO) { getSession() }
-            if (sess != null && sess.status == "playing" && sess.nowPlaying != null) {
-                _session.value = sess
-                loadAndPlay(sess.nowPlaying.streamUrl)
-            } else {
-                // Nothing running — start the DJ
-                startSession("dj")
+        val action: () -> Unit = {
+            viewModelScope.launch {
+                val sess = withContext(Dispatchers.IO) { getSession() }
+                if (sess != null && sess.status == "playing" && sess.nowPlaying != null) {
+                    _session.value = sess
+                    loadAndPlay(sess.nowPlaying)
+                } else {
+                    startSession("dj")
+                }
             }
+            Unit
         }
+        if (controller != null) action() else pendingAction = action
     }
 
     // ── Controls ──────────────────────────────────────────────────────────
 
     fun togglePlayPause() {
-        if (player.isPlaying) {
-            player.pause()
-            viewModelScope.launch {
-                withContext(Dispatchers.IO) { controlSession("pause") }
-            }
+        val c = controller ?: return
+        if (c.isPlaying) {
+            c.pause()
+            viewModelScope.launch { withContext(Dispatchers.IO) { controlSession("pause") } }
         } else {
-            player.play()
-            viewModelScope.launch {
-                withContext(Dispatchers.IO) { controlSession("resume") }
-            }
+            c.play()
+            viewModelScope.launch { withContext(Dispatchers.IO) { controlSession("resume") } }
         }
     }
 
     fun skip() {
         viewModelScope.launch {
-            // Save current track before switching so ⏮ double-tap can return to it
-            prevNowPlaying = _session.value?.nowPlaying
+            prevNowPlaying = currentNowPlaying   // save before switching
             val sess = withContext(Dispatchers.IO) { skipSession() }
             if (sess?.nowPlaying != null) {
                 _session.value = sess
-                loadAndPlay(sess.nowPlaying.streamUrl)
+                loadAndPlay(sess.nowPlaying)
             }
         }
     }
 
-    /**
-     * Seek the current track back to the beginning (single ⏮ tap).
-     */
+    /** Single ⏮ tap — restart the current track from the top. */
     fun seekToStart() {
-        player.seekTo(0)
-        // Ensure playback is running after seek (it may have been paused)
-        if (!player.isPlaying) player.play()
+        controller?.seekTo(0)
+        if (controller?.isPlaying == false) controller?.play()
     }
 
-    /**
-     * Load the previous track (double ⏮ tap within 5 s).
-     * Falls back to [seekToStart] if no previous track is known.
-     */
+    /** Double ⏮ tap within 5 s — go back to the previous track. */
     fun previousTrack() {
         val prev = prevNowPlaying
         if (prev != null) {
-            // The current track becomes the new "prev" so a third tap goes back again
-            prevNowPlaying = _session.value?.nowPlaying
-            _session.value = _session.value?.copy(
-                nowPlaying = prev,
-                // mode/status/etc. unchanged — we're still in the same session
-            )
-            loadAndPlay(prev.streamUrl)
+            prevNowPlaying    = currentNowPlaying
+            currentNowPlaying = prev
+            _session.value    = _session.value?.copy(nowPlaying = prev)
+            loadAndPlay(prev)
         } else {
             seekToStart()
         }
@@ -212,40 +233,38 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
 
     // ── Internal ──────────────────────────────────────────────────────────
 
-    private fun loadAndPlay(streamUrl: String) {
-        // Prepend base URL if the path is relative (normal case from SkippyTel)
-        val fullUrl = if (streamUrl.startsWith("http")) streamUrl
-                      else "$skippyTelUrl$streamUrl"
-        Log.i(TAG, "Loading stream: $fullUrl")
-        player.setMediaItem(MediaItem.fromUri(fullUrl))
-        player.prepare()
-        player.play()
+    private fun loadAndPlay(np: NowPlaying) {
+        val fullUrl = if (np.streamUrl.startsWith("http")) np.streamUrl
+                      else "$skippyTelUrl${np.streamUrl}"
+        Log.i(TAG, "loadAndPlay: $fullUrl")
+        val mediaItem = MediaItem.Builder()
+            .setUri(fullUrl)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setArtist(np.artist)
+                    .setTitle(np.title)
+                    .setAlbumTitle(np.album)
+                    .build()
+            )
+            .build()
+        controller?.setMediaItem(mediaItem)
+        controller?.prepare()
+        controller?.play()
     }
 
-    private suspend fun advance() {
-        Log.i(TAG, "Track ended — calling /music/session/advance")
-        prevNowPlaying = _session.value?.nowPlaying   // save so ⏮ can return here
-        val sess = withContext(Dispatchers.IO) { advanceSession() }
-        if (sess?.nowPlaying != null) {
-            _session.value = sess
-            loadAndPlay(sess.nowPlaying.streamUrl)
-        } else {
-            Log.i(TAG, "advance returned no next track — stopping")
-            _playerState.value = PlayerState.Idle
-            _session.value = sess
-        }
-    }
-
-    /**
-     * Poll GET /music/session every 5 s to keep metadata fresh.
-     * Does NOT re-trigger playback — just updates the UI state.
-     */
+    /** Poll GET /music/session every 5 s to keep mode/queue/source fresh. */
     private fun startPolling() {
         viewModelScope.launch {
             while (true) {
                 delay(5_000L)
                 val sess = withContext(Dispatchers.IO) { getSession() }
-                if (sess != null) _session.value = sess
+                if (sess != null) {
+                    // Preserve the now-playing from MediaController metadata — it's more
+                    // up-to-date than the polling response during a track transition.
+                    _session.value = sess.copy(
+                        nowPlaying = _session.value?.nowPlaying ?: sess.nowPlaying
+                    )
+                }
             }
         }
     }
@@ -278,16 +297,6 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         }
     } catch (e: Exception) { null }
 
-    private fun advanceSession(): MusicSession? = try {
-        val req = Request.Builder()
-            .url("$skippyTelUrl/music/session/advance")
-            .post("{}".toRequestBody("application/json".toMediaType()))
-            .build()
-        http.newCall(req).execute().use { resp ->
-            if (!resp.isSuccessful) null else parseSession(resp.body?.string())
-        }
-    } catch (e: Exception) { Log.e(TAG, "advance: $e"); null }
-
     private fun skipSession(): MusicSession? = try {
         val req = Request.Builder()
             .url("$skippyTelUrl/music/session/skip")
@@ -311,20 +320,13 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         if (json == null) return null
         return try {
             val root = JSONObject(json)
-            // SkippyTel wraps responses in {"spec_version":"1","data":{...}}
             val data = root.optJSONObject("data") ?: root
             val np   = data.optJSONObject("now_playing")
             MusicSession(
                 sessionId      = data.optString("session_id").takeIf { it.isNotBlank() },
                 mode           = data.optString("mode").takeIf { it.isNotBlank() },
                 status         = data.optString("status", "stopped"),
-                nowPlaying     = if (np != null) NowPlaying(
-                    artist    = np.optString("artist", "Unknown"),
-                    title     = np.optString("title",  "Unknown"),
-                    album     = np.optString("album",  ""),
-                    fileId    = np.optString("file_id", ""),
-                    streamUrl = np.optString("stream_url", ""),
-                ) else null,
+                nowPlaying     = np?.toNowPlaying(),
                 queueRemaining = data.optInt("queue_remaining", 0),
                 source         = data.optString("source", "local"),
             )
@@ -332,7 +334,30 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
-        player.release()
+        controller?.removeListener(playerListener)
+        controller?.release()
         super.onCleared()
     }
+}
+
+// ── Extension helpers ─────────────────────────────────────────────────────────
+
+private fun JSONObject.toNowPlaying() = NowPlaying(
+    artist    = optString("artist", "Unknown"),
+    title     = optString("title",  "Unknown"),
+    album     = optString("album",  ""),
+    fileId    = optString("file_id", ""),
+    streamUrl = optString("stream_url", ""),
+)
+
+private fun MediaItem.toNowPlaying(): NowPlaying? {
+    val meta = mediaMetadata
+    val url  = localConfiguration?.uri?.toString() ?: return null
+    return NowPlaying(
+        artist    = meta.artist?.toString() ?: "Unknown",
+        title     = meta.title?.toString()  ?: "Unknown",
+        album     = meta.albumTitle?.toString() ?: "",
+        fileId    = "",
+        streamUrl = url,
+    )
 }
