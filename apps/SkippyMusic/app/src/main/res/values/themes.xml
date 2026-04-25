@@ -1,0 +1,4 @@
+<resources>
+    <!-- Full-screen dark theme — no action bar, no status bar chrome -->
+    <style name="Theme.SkippyMusic" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      INTERNET: stream audio from SkippyTel at http://10.0.2.2:3003 (emulator)
+      or http://skippy-pc:3003 (real S23 via Tailscale).
+      usesCleartextTraffic: local Tailscale traffic is HTTP (not HTTPS).
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
+        android:theme="@style/Theme.SkippyMusic">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:screenOrientation="portrait">
+
+            <!-- Standard launcher entry -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!--
+              SkippyChat / SkippyDroid launch this with extras:
+                mode    — "dj" | "playlist" | "single"
+                prompt  — playlist description (playlist mode)
+                artist  — artist name (single mode)
+                title   — track title (single mode)
+                trigger_phrase — raw voice phrase that triggered the launch
+            -->
+            <intent-filter>
+                <action android:name="local.skippy.music.PLAY" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
+        </activity>
+
+    </application>
+
+</manifest>
