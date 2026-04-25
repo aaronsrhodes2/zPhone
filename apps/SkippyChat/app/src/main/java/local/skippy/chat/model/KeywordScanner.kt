@@ -104,6 +104,10 @@ object KeywordScanner {
      *
      * Excludes `"*"` catch-all entries — those are handled by the AI tier.
      */
+    // @Volatile ensures that writes from the IO thread (loadServices coroutine) are
+    // immediately visible to the main thread reading this in scan(). Without it, the
+    // JVM is free to cache the value in a register and miss updates across threads.
+    @Volatile
     var dynamicTriggers: Map<String, String> = emptyMap()
 
     // ── Keyword lists ─────────────────────────────────────────────────────

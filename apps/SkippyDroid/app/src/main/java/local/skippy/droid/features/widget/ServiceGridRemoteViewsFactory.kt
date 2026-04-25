@@ -16,6 +16,8 @@ import local.skippy.droid.features.services.ServiceManifest
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 
 /**
@@ -49,10 +51,15 @@ class ServiceGridRemoteViewsFactory(
         context.getSharedPreferences("skippy_prefs", Context.MODE_PRIVATE)
             .getString("skippytel_url", "http://10.0.2.2:3003") ?: "http://10.0.2.2:3003"
 
+    // Short timeouts — this runs on a Binder thread; long waits cause widget ANRs.
     private val http = OkHttpClient.Builder()
-        .connectTimeout(5, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
+        .connectTimeout(3, TimeUnit.SECONDS)
+        .readTimeout(5, TimeUnit.SECONDS)
         .build()
+
+    // Thread pool for parallel icon fetches. One thread per service is fine —
+    // we only have ~10 services and the work is purely I/O.
+    private val iconExecutor = Executors.newFixedThreadPool(4)
 
     // Snapshot of services with UIs, refreshed in onDataSetChanged()
     private var items: List<ServiceManifest> = emptyList()
@@ -65,16 +72,29 @@ class ServiceGridRemoteViewsFactory(
 
     override fun onDataSetChanged() {
         items = fetchVisibleServices()
-        // Pre-fetch icons for all items so getViewAt() is fast
-        items.forEach { svc ->
-            if (!iconCache.containsKey(svc.id)) {
-                iconCache[svc.id] = fetchIcon(svc.id) ?: fallbackIcon(svc)
+        // Fetch icons in parallel — sequential fetches with 5s timeouts could
+        // block the Binder thread for up to (n × 5s) causing widget ANRs.
+        val pending: List<Pair<String, Future<Bitmap?>>> = items
+            .filter { !iconCache.containsKey(it.id) }
+            .map { svc ->
+                svc.id to iconExecutor.submit<Bitmap?> {
+                    fetchIcon(svc.id)
+                }
+            }
+        pending.forEach { (id, future) ->
+            val svc = items.find { it.id == id } ?: return@forEach
+            try {
+                iconCache[id] = future.get(6, TimeUnit.SECONDS) ?: fallbackIcon(svc)
+            } catch (e: Exception) {
+                Log.w(TAG, "Icon fetch timed out for $id — using fallback")
+                iconCache[id] = fallbackIcon(svc)
             }
         }
         Log.i(TAG, "Updated: ${items.size} visible services")
     }
 
     override fun onDestroy() {
+        iconExecutor.shutdownNow()
         iconCache.values.forEach { it.recycle() }
         iconCache.clear()
     }
@@ -180,6 +200,7 @@ class ServiceGridRemoteViewsFactory(
         return when (serviceId) {
             "intent"    -> Color.parseColor("#00FFFF")
             "bilby"     -> Color.parseColor("#AA44FF")
+            "music"     -> Color.parseColor("#FF44AA")   // hot pink — distinct from bilby purple
             "dropship"  -> Color.parseColor("#4488FF")
             "image"     -> Color.parseColor("#00FF88")
             "translate" -> Color.parseColor("#FFFF44")

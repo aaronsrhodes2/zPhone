@@ -71,7 +71,10 @@ class ChatViewModel(
     val inputMode: StateFlow<InputMode> = _inputMode.asStateFlow()
 
     /** Switch input mode. Called from the keyword scanner in the UI layer. */
-    fun setMode(mode: InputMode) { _inputMode.value = mode }
+    fun setMode(mode: InputMode) {
+        if (_inputMode.value == mode) return   // idempotent — no spurious recompositions
+        _inputMode.value = mode
+    }
 
     // ── Service manifest ──────────────────────────────────────────────────
 
@@ -88,6 +91,11 @@ class ChatViewModel(
      * phone picks up new services without a restart.
      *
      * Called once from init; stops automatically when the ViewModel is cleared.
+     *
+     * Poll interval: 5 minutes. This is intentionally longer than SkippyDroid's
+     * 60s ServiceRegistry poll — voice triggers rarely change mid-session, and
+     * the longer interval saves battery on the Captain's phone. The FIRST fetch
+     * fires immediately (no initial lag); subsequent fetches run every 5 min.
      */
     private fun loadServices() {
         viewModelScope.launch {
@@ -108,7 +116,7 @@ class ChatViewModel(
                     Log.i(TAG, "Loaded ${fetched.size} services; " +
                             "${KeywordScanner.dynamicTriggers.size} voice triggers registered")
                 }
-                delay(5 * 60 * 1_000L)   // refresh every 5 minutes
+                delay(5 * 60 * 1_000L)   // refresh every 5 minutes (SkippyDroid uses 60s for its HUD)
             }
         }
     }
