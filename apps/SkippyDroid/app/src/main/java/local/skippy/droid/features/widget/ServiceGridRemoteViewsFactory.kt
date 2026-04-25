@@ -170,7 +170,8 @@ class ServiceGridRemoteViewsFactory(
             textAlign = Paint.Align.CENTER
         }
         val yPos = size / 2f - (textPaint.descent() + textPaint.ascent()) / 2f
-        canvas.drawText(svc.id.first().uppercaseChar().toString(), size / 2f, yPos, textPaint)
+        val initial = svc.id.firstOrNull()?.uppercaseChar() ?: '?'
+        canvas.drawText(initial.toString(), size / 2f, yPos, textPaint)
 
         return bmp
     }
