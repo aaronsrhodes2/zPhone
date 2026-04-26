@@ -115,6 +115,18 @@ class TransportLayer(private val pcBaseUrl: String) {
         }
     }
 
+    /** Fire a GET and return the response body string, or null on any failure. */
+    fun get(path: String): String? {
+        return try {
+            val request = Request.Builder().url("$pcBaseUrl$path").build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) null else response.body?.string()
+            }
+        } catch (_: IOException) {
+            null
+        }
+    }
+
     /** Fire a POST and return the response body string, or null on failure. */
     fun post(path: String, body: okhttp3.RequestBody): String? {
         if (pcState != State.ONLINE) return null

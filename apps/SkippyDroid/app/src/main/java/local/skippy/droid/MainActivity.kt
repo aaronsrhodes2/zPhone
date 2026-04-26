@@ -29,6 +29,7 @@ import local.skippy.droid.layers.CameraPassthrough
 import local.skippy.droid.compositor.passthrough.MockPassthroughView
 import local.skippy.droid.compositor.passthrough.PassthroughHost
 import local.skippy.droid.features.battery.BatteryModule
+import local.skippy.droid.features.bilby.BilbyModule
 import local.skippy.droid.features.clock.ClockModule
 import local.skippy.droid.features.compass.CompassModule
 import local.skippy.droid.features.context.ContextModeModule
@@ -208,6 +209,8 @@ class MainActivity : ComponentActivity() {
             NotificationModule(sound),
             // Session 9 — voice-controlled teleprompter (BottomCenter, hidden until loaded).
             TeleprompterModule(teleprompter),
+            // Bilby music card — pulls /music/session every 2 s; self-suppresses when stopped.
+            BilbyModule(transport),
             // Session 7b — Viewport host for mounted passthrough apps.
             passthroughHost,
             // Session 11e — TopStart panel listing registered passthrough views
