@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <uses-feature android:name="android.hardware.sensor.proximity" android:required="false" />
 
     <!-- SMS send + receive -->
     <uses-permission android:name="android.permission.SEND_SMS" />
@@ -72,6 +73,27 @@
           the existing SkippyChat task back to front — scrollback stays
           intact across rotations rather than being rebuilt from nothing.
         -->
+        <!--
+          SkippyChat is the device's primary home surface.
+
+          The HOME + DEFAULT intent filter makes it available as a launcher
+          choice. Set it as default once (or via ADB below) and the phone
+          wakes directly into SkippyChat — no Android desktop flash.
+
+          Rotation slots:
+            ROTATION_0   (upright portrait)       → SkippyChat stays
+            ROTATION_90  (USB on right / glasses) → SkippyDroid HUD
+            ROTATION_180 (upside-down)            → Android backup launcher
+            ROTATION_270 (USB on left)            → Services panel
+
+          android:screenOrientation="sensor" is required so that physical
+          rotation events reach onConfigurationChanged for slot handoff.
+          The activity itself sets requestedOrientation = PORTRAIT on every
+          onResume so SkippyChat is always the anchored home surface.
+
+          adb one-liner to set SkippyChat as default home:
+            adb shell cmd package set-home-activity local.skippy.chat/.MainActivity
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -79,11 +101,38 @@
             android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:windowSoftInputMode="stateAlwaysHidden|adjustResize">
+            <!-- Standard app launcher icon -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Home launcher — replaces Android desktop on wake/home button -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
+
+        <!--
+          SkippyDeviceAdmin — grants force-lock so PocketDetector can call
+          DevicePolicyManager.lockNow() when the proximity sensor detects
+          the phone has been pocketed.
+
+          One-time activation after install:
+            adb shell dpm set-active-admin local.skippy.chat/.admin.SkippyDeviceAdmin
+        -->
+        <receiver
+            android:name=".admin.SkippyDeviceAdmin"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/skippy_device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
 
         <!--
           SmsReceiver — receives incoming SMS and posts to the in-process

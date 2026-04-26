@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Device admin policy declaration for SkippyChat.
+  Grants the force-lock policy so PocketDetector can call
+  DevicePolicyManager.lockNow() when the proximity sensor detects
+  the phone has been pocketed.
+
+  One-time activation (run once after install):
+    adb shell dpm set-active-admin local.skippy.chat/.admin.SkippyDeviceAdmin
+-->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies>
+        <force-lock />
+    </uses-policies>
+</device-admin>
