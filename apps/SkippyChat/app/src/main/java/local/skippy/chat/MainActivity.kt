@@ -1,7 +1,11 @@
 package local.skippy.chat
 
 import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.net.Uri
@@ -51,6 +55,47 @@ class MainActivity : ComponentActivity() {
     private val viewModel    = ChatViewModel(client)
     private val speechEngine = SpeechInputEngine(this)
     private val audioRouter  = AudioRouter(this)
+
+    // ── Rotation lock ─────────────────────────────────────────────────────
+    //
+    // Doctrine: screen-off = "going into pocket" = lock current rotation.
+    // screen-on = "pulled out" = re-orient based on glasses connection.
+    // Headphone button = manual override toggle.
+    //
+    // SCREEN_ORIENTATION_LOCKED (API 18) freezes whatever angle is current.
+    // On screen-on: glasses connected → sensor landscape; else free rotation.
+    //
+    // This is registered/unregistered in onStart/onStop so it's active even
+    // when the activity is in the background (screen turns off with another
+    // app in front — we still want the lock to fire so SkippyChat is in the
+    // right orientation when the Captain next opens it).
+
+    private var orientationManuallyLocked = false
+
+    private val screenStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                Intent.ACTION_SCREEN_OFF -> {
+                    // Freeze current angle — the Captain is about to pocket the phone.
+                    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED
+                    Log.d(TAG, "screen off → orientation locked")
+                }
+                Intent.ACTION_SCREEN_ON -> {
+                    if (orientationManuallyLocked) return  // respect manual override
+                    // Release or steer based on glasses.
+                    if (audioRouter.hasExternalOutput()) {
+                        // Viture XR or any external audio = glasses mode → landscape
+                        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                        Log.d(TAG, "screen on + glasses → sensor landscape")
+                    } else {
+                        // No external audio → free rotation, let the sensor decide
+                        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                        Log.d(TAG, "screen on + no glasses → free rotation")
+                    }
+                }
+            }
+        }
+    }
 
     // Runtime permission launcher — requested once on first cold start.
     private val requestMicPermission =
@@ -126,6 +171,14 @@ class MainActivity : ComponentActivity() {
         startSpeechEngineIfPermitted()
         requestSmsPermissionsIfNeeded()
         startDropShipWatcherIfPermitted()
+        // Register screen-off/on receiver for rotation lock.
+        // These actions aren't deliverable via manifest; must register dynamically.
+        registerReceiver(
+            screenStateReceiver,
+            IntentFilter(Intent.ACTION_SCREEN_OFF).apply {
+                addAction(Intent.ACTION_SCREEN_ON)
+            },
+        )
     }
 
     override fun onStop() {
@@ -133,6 +186,7 @@ class MainActivity : ComponentActivity() {
         client.stop()
         audioRouter.stop()
         speechEngine.stop()
+        try { unregisterReceiver(screenStateReceiver) } catch (_: Exception) {}
     }
 
     // ── Volume Down = mic mute toggle ─────────────────────────────────────
@@ -156,6 +210,24 @@ class MainActivity : ComponentActivity() {
             viewModel.onParagraphKey()
             Log.d(TAG, "paragraph key → newline")
             return true   // consumed — don't toggle system caps lock
+        }
+        // Headphone button (glasses or inline remote) → manual rotation lock toggle.
+        // Short press while glasses are connected: lock the current angle so handing
+        // the phone to someone or flipping it on a surface won't rotate the HUD.
+        // Second press releases back to sensor mode.
+        if (keyCode == KeyEvent.KEYCODE_HEADSETHOOK) {
+            orientationManuallyLocked = !orientationManuallyLocked
+            if (orientationManuallyLocked) {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED
+                Log.d(TAG, "headset button → orientation manually locked")
+            } else {
+                requestedOrientation = if (audioRouter.hasExternalOutput())
+                    ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                else
+                    ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                Log.d(TAG, "headset button → orientation released")
+            }
+            return true
         }
         return super.onKeyDown(keyCode, event)
     }
