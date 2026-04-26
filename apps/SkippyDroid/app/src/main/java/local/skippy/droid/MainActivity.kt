@@ -3,7 +3,6 @@ package local.skippy.droid
 import android.content.Intent
 import android.content.res.Configuration
 import android.hardware.display.DisplayManager
-import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -766,10 +765,10 @@ class MainActivity : ComponentActivity() {
     // which is why this used to flip flop between landscape and portrait only.
     //
     // Slot map:
-    //   ROTATION_0            USB at bottom  natural portrait    → SkippyChat
-    //   SLOT_HUD_ROTATION     USB on right   landscape           → THIS app (stay)
-    //   SLOT_BROWSER_ROTATION USB at top     upside-down         → Browser (Chrome)
-    //   SLOT_SERVICES_ROTATION USB on left   landscape           → Service selector
+    //   ROTATION_0             USB at bottom  natural portrait    → SkippyChat
+    //   SLOT_HUD_ROTATION      USB on right   landscape           → THIS app (stay)
+    //   SLOT_ESCAPE_ROTATION   USB at top     upside-down         → Android backup launcher
+    //   SLOT_SERVICES_ROTATION USB on left    landscape           → Service selector
     //
     // Service selector (ROTATION_270 / USB-left): Captain rotates left to browse
     // registered passthrough producers (DJ Block Planner, etc.) and mount one
@@ -823,9 +822,9 @@ class MainActivity : ComponentActivity() {
     private fun maybeHandoff() {
         val rotation = display?.rotation ?: windowManager.defaultDisplay.rotation
         when (rotation) {
-            SLOT_HUD_ROTATION      -> return                          // we ARE the HUD slot
+            SLOT_HUD_ROTATION      -> return                           // we ARE the HUD slot
             Surface.ROTATION_0     -> launchSibling(SKIPPY_CHAT_PKG, "Chat")
-            SLOT_BROWSER_ROTATION  -> launchBrowser()
+            SLOT_ESCAPE_ROTATION   -> launchAndroidHome()              // escape to Android desktop
             SLOT_SERVICES_ROTATION -> launchServiceSelector()
             else                   -> Log.w("Local.Skippy", "rotation=$rotation has no slot; staying")
         }
@@ -847,23 +846,51 @@ class MainActivity : ComponentActivity() {
         moveTaskToBack(true)
     }
 
-    private fun launchBrowser() {
-        // USB-top (ROTATION_180) = browser slot.
-        // Try real Chrome first; fall back to ACTION_VIEW for emulator/other hosts.
-        val chrome = packageManager.getLaunchIntentForPackage("com.android.chrome")
-        val intent = chrome ?: Intent(Intent.ACTION_VIEW, Uri.parse("about:blank"))
-        intent.addFlags(
-            Intent.FLAG_ACTIVITY_NEW_TASK or
-            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-        )
-        Log.d("Local.Skippy", "rotation → browser slot (${if (chrome != null) "Chrome" else "system browser"})")
-        try {
-            startActivity(intent)
-            crossfadeOut()
-            moveTaskToBack(true)
-        } catch (e: android.content.ActivityNotFoundException) {
-            Log.w("Local.Skippy", "no browser available for browser slot; staying", e)
+    /**
+     * ROTATION_180 (upside-down) = escape hatch to the Android backup launcher.
+     *
+     * Mirrors SkippyChat's launchAndroidHome() — queries all registered home apps,
+     * picks the first one that is NOT SkippyChat, and launches it directly.
+     * Falls back through known Samsung/Pixel/AOSP launchers, then Settings.
+     */
+    private fun launchAndroidHome() {
+        Log.d("Local.Skippy", "rotation → Android home escape hatch")
+        val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        val homes = packageManager.queryIntentActivities(homeIntent, 0)
+        val backup = homes.firstOrNull { it.activityInfo.packageName != "local.skippy.chat" }
+        if (backup != null) {
+            val launch = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+                component = android.content.ComponentName(
+                    backup.activityInfo.packageName,
+                    backup.activityInfo.name,
+                )
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            }
+            try {
+                startActivity(launch)
+                crossfadeOut()
+                moveTaskToBack(true)
+                return
+            } catch (e: Exception) {
+                Log.w("Local.Skippy", "backup home launch failed: ${e.message}")
+            }
         }
+        val fallbacks = listOf(
+            "com.sec.android.app.launcher",
+            "com.google.android.apps.nexuslauncher",
+            "com.android.launcher3",
+            "com.android.launcher",
+        )
+        for (pkg in fallbacks) {
+            val intent = packageManager.getLaunchIntentForPackage(pkg) ?: continue
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            try { startActivity(intent); crossfadeOut(); moveTaskToBack(true); return }
+            catch (_: Exception) {}
+        }
+        startActivity(Intent(android.provider.Settings.ACTION_SETTINGS).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        })
     }
 
     private fun launchServiceSelector() {
@@ -901,15 +928,15 @@ class MainActivity : ComponentActivity() {
         const val SKIPPY_SERVICES_PKG = "local.skippy.services"  // not yet built
 
         // Four-slot rotation doctrine (must agree with SkippyChat's MainActivity):
-        //   ROTATION_0   USB-down  → SkippyChat
-        //   ROTATION_90  USB-right → SkippyDroid HUD  (this app)
-        //   ROTATION_180 USB-up    → Browser
-        //   ROTATION_270 USB-left  → Service selector (local.skippy.services)
+        //   ROTATION_0    USB-down  → SkippyChat (home)
+        //   ROTATION_90   USB-right → SkippyDroid HUD  (this app)
+        //   ROTATION_180  USB-up    → Android backup launcher (escape hatch)
+        //   ROTATION_270  USB-left  → Service selector (local.skippy.services)
         //
         // Values observed empirically on SkippyS23 AVD via `adb emu rotate`.
         // Flip HUD/SERVICES pair if real S23 hardware disagrees.
         const val SLOT_HUD_ROTATION      = Surface.ROTATION_90
-        const val SLOT_BROWSER_ROTATION  = Surface.ROTATION_180
+        const val SLOT_ESCAPE_ROTATION   = Surface.ROTATION_180
         const val SLOT_SERVICES_ROTATION = Surface.ROTATION_270
     }
 }
