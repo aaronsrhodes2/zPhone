@@ -135,6 +135,13 @@ class MainActivity : ComponentActivity() {
             (getSystemService(android.app.UiModeManager::class.java))
                 .setApplicationNightMode(android.app.UiModeManager.MODE_NIGHT_YES)
         }
+        // Cold-start: anchor to portrait so SkippyChat is always the landing
+        // surface regardless of the phone's last resting angle.
+        // The rotation-slot handoff only fires on deliberate user rotation
+        // (onConfigurationChanged), so this anchor doesn't block that.
+        if (savedInstanceState == null) {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
         super.onCreate(savedInstanceState)
         val skippyTelUrl = getSharedPreferences("skippy_prefs", MODE_PRIVATE)
             .getString("skippytel_url", "http://10.0.2.2:3003") ?: "http://10.0.2.2:3003"
@@ -233,13 +240,23 @@ class MainActivity : ComponentActivity() {
     }
 
     // ── Rotation handoff ──────────────────────────────────────────────────
+    //
+    // Doctrine: SkippyChat is the *home* orientation (portrait / ROTATION_0).
+    // Intentional rotation by the user drives handoff to sibling apps.
+    //
+    // ONLY fire from onConfigurationChanged — not from onResume. This keeps
+    // SkippyChat as the stable starting surface; it never auto-evicts itself
+    // just because the phone happened to be tilted when it last went to sleep.
+    //
+    // Cold-start orientation is locked to portrait (onCreate, first launch only)
+    // so the Captain always lands in SkippyChat on a fresh open.
+
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        maybeHandoff()
-    }
-
-    override fun onResume() {
-        super.onResume()
+        // Guard: only handoff when the screen-off lock is NOT active.
+        // If the rotation change is caused by us setting requestedOrientation
+        // programmatically (screen-on handler), don't treat it as a user gesture.
+        if (requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_LOCKED) return
         maybeHandoff()
     }
 
