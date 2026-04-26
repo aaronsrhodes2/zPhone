@@ -14,6 +14,21 @@
     <!-- Contact name → phone number resolution -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
 
+    <!-- DropShip auto-upload — watch MediaStore for new photos -->
+    <!-- API 33+ (Android 13+): granular media permission -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- API 30-32 fallback (ignored on 33+) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <!-- Required to show foreground-service notification -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Android 14+: must declare the service type -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Start DropShipWatcher on boot / after package update -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Show upload notification on Android 13+ -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <!--
       Package visibility (Android 11+). SkippyChat resolves launch intents
       for sibling Skippy apps and Chrome when the Captain rotates between
@@ -63,7 +78,7 @@
             android:screenOrientation="sensor"
             android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|keyboardHidden"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="stateAlwaysHidden|adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -82,6 +97,30 @@
             android:permission="android.permission.BROADCAST_SMS">
             <intent-filter android:priority="999">
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <!--
+          DropShipWatcher — foreground service that watches MediaStore for new
+          photos and uploads them to SkippyTel /dropship/upload. Keeps running
+          in the background so photos taken while SkippyChat is closed are
+          still uploaded. foregroundServiceType="dataSync" required for API 34+.
+        -->
+        <service
+            android:name=".dropship.DropShipWatcher"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!--
+          DropShipBootReceiver — starts DropShipWatcher after boot and after
+          the app is updated. RECEIVE_BOOT_COMPLETED declared above.
+        -->
+        <receiver
+            android:name=".dropship.DropShipBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
 

@@ -8,8 +8,11 @@ import local.skippy.chat.sms.SmsSender
 import local.skippy.chat.transport.SkippyTelClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -76,6 +79,15 @@ class ChatViewModel(
         _inputMode.value = mode
     }
 
+    // ── Paragraph key ─────────────────────────────────────────────────────
+    // Emitted by MainActivity when the hardware Caps Lock key is pressed.
+    // ChatScreen collects this and appends '\n' to the draft so the user
+    // can insert paragraph breaks without reaching for Shift+Enter.
+    private val _paragraphKey = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val paragraphKey: SharedFlow<Unit> = _paragraphKey.asSharedFlow()
+
+    fun onParagraphKey() { _paragraphKey.tryEmit(Unit) }
+
     // ── Service manifest ──────────────────────────────────────────────────
 
     private val _services = MutableStateFlow<List<ServiceManifest>>(emptyList())
@@ -140,8 +152,29 @@ class ChatViewModel(
         }
     }
 
+    // ── Music status (DJ Bilby header glyph) ──────────────────────────────
+    //
+    // Polls /music/bilby-status every 20 seconds. SkippyChat only needs to
+    // know playing/paused/none — no full session details required here.
+    // The ♪ glyph in the Header composable reads this state.
+
+    private val _musicStatus = MutableStateFlow("none")
+    /** "playing" | "paused" | "none" — updated every 20 seconds. */
+    val musicStatus: StateFlow<String> = _musicStatus.asStateFlow()
+
+    private fun pollMusicStatus() {
+        viewModelScope.launch {
+            while (true) {
+                val status = withContext(Dispatchers.IO) { client.getMusicStatus() }
+                _musicStatus.value = status?.status ?: "none"
+                delay(20_000L)
+            }
+        }
+    }
+
     init {
         loadServices()
+        pollMusicStatus()
     }
 
     private companion object {

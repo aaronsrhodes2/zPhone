@@ -90,6 +90,18 @@ object KeywordScanner {
          *   3. Otherwise fall through to a system bubble confirming the action.
          */
         data class ServiceIntent(val serviceId: String, val triggerPhrase: String) : Result()
+
+        /**
+         * Raise media volume by one voice step via [AudioRouter].
+         * No-op when no external audio output is connected (phone speaker locked).
+         */
+        object VolumeUp : Result()
+
+        /**
+         * Lower media volume by one voice step via [AudioRouter].
+         * No-op when no external audio output is connected.
+         */
+        object VolumeDown : Result()
     }
 
     // ── Dynamic triggers ──────────────────────────────────────────────────
@@ -170,6 +182,17 @@ object KeywordScanner {
     )
 
     /**
+     * Volume control — handled before Bilby/SMS so natural phrases like
+     * "volume up" never fall through to a send or service lookup.
+     */
+    private val VOLUME_UP_KEYWORDS = listOf(
+        "volume up", "louder", "turn it up", "turn up the volume",
+    )
+    private val VOLUME_DOWN_KEYWORDS = listOf(
+        "volume down", "quieter", "turn it down", "softer", "lower the volume",
+    )
+
+    /**
      * Bilby now-playing query. Very short, natural phrases.
      * "what's playing" is a common one-shot voice command that should
      * never accidentally trigger a send.
@@ -228,6 +251,11 @@ object KeywordScanner {
         for (kw in ENTER_SPANISH_KEYWORDS) {
             if (lower.contains(kw)) return Result.EnterSpanish
         }
+
+        // 0.2. Volume controls — checked before everything else so "volume up"
+        //      is never accidentally treated as a draft to be sent.
+        for (kw in VOLUME_UP_KEYWORDS)   { if (lower.contains(kw)) return Result.VolumeUp   }
+        for (kw in VOLUME_DOWN_KEYWORDS) { if (lower.contains(kw)) return Result.VolumeDown }
 
         // 0.3. Bilby music commands — before clear/send so they're never swallowed.
         for (kw in BILBY_NEXT_KEYWORDS) {

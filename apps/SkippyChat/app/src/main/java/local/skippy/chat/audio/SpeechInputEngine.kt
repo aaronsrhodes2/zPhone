@@ -49,6 +49,17 @@ class SpeechInputEngine(private val context: Context) {
     var isListening by mutableStateOf(false)
         private set
 
+    /**
+     * True when the recognizer has detected end-of-speech (user went silent after
+     * an utterance). Resets to false the moment a new utterance begins.
+     *
+     * ChatScreen uses this as the *start* signal for the auto-send countdown —
+     * the timer only arms when this is true AND the draft contains STT content.
+     * Keyboard-only drafts are never auto-sent regardless of this flag.
+     */
+    var isSilent by mutableStateOf(false)
+        private set
+
     /** Live partial transcript — updates word by word while speaking. */
     var partialTranscript by mutableStateOf("")
         private set
@@ -104,6 +115,7 @@ class SpeechInputEngine(private val context: Context) {
                 partialTranscript = ""
                 rmsLevel = 0f
                 isListening = false
+                isSilent = false
                 Log.d(TAG, "muted")
             } else {
                 // Resume: kick off a new session.
@@ -172,6 +184,7 @@ class SpeechInputEngine(private val context: Context) {
         running = false
         isListening = false
         sessionActive = false
+        isSilent = false
         main.removeCallbacksAndMessages(null)
         recognizer?.let {
             try { it.cancel()  } catch (_: Throwable) {}
@@ -272,7 +285,7 @@ class SpeechInputEngine(private val context: Context) {
             restoreBeepVolumes()
             partialTranscript = ""
         }
-        override fun onBeginningOfSpeech() {}
+        override fun onBeginningOfSpeech() { isSilent = false }
         override fun onBufferReceived(buffer: ByteArray?) {}
         override fun onEvent(eventType: Int, params: Bundle?) {}
 
@@ -281,7 +294,7 @@ class SpeechInputEngine(private val context: Context) {
                 .coerceIn(0f, 1f)
         }
 
-        override fun onEndOfSpeech() { rmsLevel = 0f }
+        override fun onEndOfSpeech() { rmsLevel = 0f; isSilent = true }
 
         override fun onError(error: Int) {
             val quiet = error == SpeechRecognizer.ERROR_NO_MATCH ||
@@ -295,6 +308,7 @@ class SpeechInputEngine(private val context: Context) {
                 running = false; isListening = false; return
             }
             partialTranscript = ""
+            isSilent = false
             scheduleRestart(if (quiet) RESTART_DELAY_MS else ERROR_BACKOFF_MS)
         }
 

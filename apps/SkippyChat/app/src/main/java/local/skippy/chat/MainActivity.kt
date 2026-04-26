@@ -16,9 +16,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import local.skippy.chat.audio.AudioRouter
 import local.skippy.chat.audio.SpeechInputEngine
 import local.skippy.chat.compositor.ChatPalette
+import local.skippy.chat.dropship.DropShipWatcher
 import local.skippy.chat.model.ChatViewModel
+import local.skippy.chat.telemetry.UiTelemetry
 import local.skippy.chat.transport.SkippyTelClient
 
 /**
@@ -47,6 +50,7 @@ class MainActivity : ComponentActivity() {
     private val client       = SkippyTelClient(baseUrl = "http://100.122.71.14:3003")
     private val viewModel    = ChatViewModel(client)
     private val speechEngine = SpeechInputEngine(this)
+    private val audioRouter  = AudioRouter(this)
 
     // Runtime permission launcher — requested once on first cold start.
     private val requestMicPermission =
@@ -70,8 +74,26 @@ class MainActivity : ComponentActivity() {
             Log.d(TAG, "SMS perms — send=$send receive=$receive contacts=$contacts")
         }
 
+    // DropShip photo permission — READ_MEDIA_IMAGES (API 33+) or
+    // READ_EXTERNAL_STORAGE (API 30-32).  Once granted, start the watcher.
+    private val requestPhotoPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            Log.d(TAG, "photo permission granted=$granted")
+            if (granted) DropShipWatcher.start(this)
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Force app-level night mode (API 31+) so the system keyboard renders dark.
+        // The theme attributes handle API 30; this handles API 31+ where the OS
+        // controls per-app night mode independently of the system setting.
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            (getSystemService(android.app.UiModeManager::class.java))
+                .setApplicationNightMode(android.app.UiModeManager.MODE_NIGHT_YES)
+        }
         super.onCreate(savedInstanceState)
+        val skippyTelUrl = getSharedPreferences("skippy_prefs", MODE_PRIVATE)
+            .getString("skippytel_url", "http://10.0.2.2:3003") ?: "http://10.0.2.2:3003"
+        UiTelemetry.init(skippyTelUrl, "skippy_chat")
         setContent {
             Surface(
                 modifier = Modifier
@@ -83,6 +105,7 @@ class MainActivity : ComponentActivity() {
                     viewModel    = viewModel,
                     client       = client,
                     speechEngine = speechEngine,
+                    audioRouter  = audioRouter,
                 )
             }
         }
@@ -99,13 +122,16 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         client.start()
+        audioRouter.start()
         startSpeechEngineIfPermitted()
         requestSmsPermissionsIfNeeded()
+        startDropShipWatcherIfPermitted()
     }
 
     override fun onStop() {
         super.onStop()
         client.stop()
+        audioRouter.stop()
         speechEngine.stop()
     }
 
@@ -121,6 +147,15 @@ class MainActivity : ComponentActivity() {
             speechEngine.isMuted = !speechEngine.isMuted
             Log.d(TAG, "mic mute → ${speechEngine.isMuted}")
             return true   // consumed — don't change volume
+        }
+        // Caps Lock → "Paragraph" key: insert a newline into the draft.
+        // The physical keyboard sends KEYCODE_CAPS_LOCK; we intercept it
+        // here and forward it as a paragraph-break signal to the ViewModel,
+        // which ChatScreen collects and converts to '\n' in the draft.
+        if (keyCode == KeyEvent.KEYCODE_CAPS_LOCK) {
+            viewModel.onParagraphKey()
+            Log.d(TAG, "paragraph key → newline")
+            return true   // consumed — don't toggle system caps lock
         }
         return super.onKeyDown(keyCode, event)
     }
@@ -210,6 +245,19 @@ class MainActivity : ComponentActivity() {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
         if (needed.isNotEmpty()) requestSmsPermissions.launch(needed.toTypedArray())
+    }
+
+    private fun startDropShipWatcherIfPermitted() {
+        // API 33+ uses READ_MEDIA_IMAGES; API 30-32 uses READ_EXTERNAL_STORAGE
+        val photoPermission = if (android.os.Build.VERSION.SDK_INT >= 33)
+            Manifest.permission.READ_MEDIA_IMAGES
+        else
+            Manifest.permission.READ_EXTERNAL_STORAGE
+
+        when (ContextCompat.checkSelfPermission(this, photoPermission)) {
+            PackageManager.PERMISSION_GRANTED -> DropShipWatcher.start(this)
+            else                              -> requestPhotoPermission.launch(photoPermission)
+        }
     }
 
     private companion object {

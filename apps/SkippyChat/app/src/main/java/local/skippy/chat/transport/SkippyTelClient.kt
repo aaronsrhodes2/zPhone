@@ -204,6 +204,36 @@ class SkippyTelClient(private val baseUrl: String) {
     }
 
     /**
+     * Parsed `GET /music/bilby-status` response.
+     * Used by SkippyChat's header to show a tiny ♪/⏸ glyph when DJ Bilby is active.
+     */
+    data class MusicStatus(
+        val status: String,     // "playing" | "paused" | "none"
+        val title:  String?,
+        val artist: String?,
+    )
+
+    /**
+     * GET `/music/bilby-status`. Blocking — call from [Dispatchers.IO].
+     * Returns null on any failure; returns `MusicStatus(status="none")` when idle.
+     */
+    fun getMusicStatus(): MusicStatus? {
+        val request = Request.Builder().url("$baseUrl/music/bilby-status").build()
+        return try {
+            healthClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                val raw = response.body?.string() ?: return null
+                val obj = JSONObject(raw)
+                MusicStatus(
+                    status = obj.optString("status", "none"),
+                    title  = obj.optString("title").takeIf { it.isNotEmpty() },
+                    artist = obj.optString("artist").takeIf { it.isNotEmpty() },
+                )
+            }
+        } catch (_: Exception) { null }
+    }
+
+    /**
      * Parsed `POST /translate/text` response.
      *
      * [detectedLang] is an ISO-639-1 code ("en", "es", "fr", …).

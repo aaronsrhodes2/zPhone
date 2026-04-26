@@ -3,6 +3,7 @@ package local.skippy.chat.ui
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.lerp as lerpColor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,15 +25,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -46,9 +49,11 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -63,6 +68,7 @@ import android.os.Build
 import android.provider.MediaStore
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
+import local.skippy.chat.audio.AudioRouter
 import local.skippy.chat.audio.SpeechInputEngine
 import local.skippy.chat.compositor.ChatPalette
 import local.skippy.chat.model.ChatViewModel
@@ -99,23 +105,31 @@ fun ChatScreen(
     viewModel:    ChatViewModel,
     client:       SkippyTelClient,
     speechEngine: SpeechInputEngine,
+    audioRouter:  AudioRouter,
 ) {
-    val context    = LocalContext.current
-    val messages   by viewModel.messages.collectAsState()
-    val sending    by viewModel.sending.collectAsState()
-    val inputMode  by viewModel.inputMode.collectAsState()
+    val context      = LocalContext.current
+    val messages     by viewModel.messages.collectAsState()
+    val sending      by viewModel.sending.collectAsState()
+    val inputMode    by viewModel.inputMode.collectAsState()
+    val musicStatus  by viewModel.musicStatus.collectAsState()
 
     var selectedMessage by remember { mutableStateOf<Message?>(null) }
     val sheetState  = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope       = rememberCoroutineScope()
 
     val listState = rememberLazyListState()
+    // Scroll to bottom when a new message lands (+1 for the always-visible cursor item).
     LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
+        val total = messages.size + 1
+        if (total > 0) listState.animateScrollToItem(total - 1)
     }
 
     // ── Draft state ───────────────────────────────────────────────────────
-    var draft by remember { mutableStateOf("") }
+    var draft          by remember { mutableStateOf("") }
+    // True when the draft contains content that arrived via STT (not keyboard).
+    // Auto-send only fires when this is true AND speechEngine.isSilent is true.
+    // Cleared the moment the user types anything manually.
+    var sttDraftPending by remember { mutableStateOf(false) }
 
     // Stable refs so the speech callback never captures stale values.
     val draftRef       = rememberUpdatedState(draft)
@@ -158,6 +172,14 @@ fun ChatScreen(
                 draft = ""
                 viewModel.bilbyNext()
             }
+            is KeywordScanner.Result.VolumeUp          -> {
+                draft = ""
+                audioRouter.volumeUp()
+            }
+            is KeywordScanner.Result.VolumeDown        -> {
+                draft = ""
+                audioRouter.volumeDown()
+            }
             is KeywordScanner.Result.ServiceIntent     -> {
                 draft = ""
                 viewModel.activateService(result.serviceId)
@@ -166,10 +188,8 @@ fun ChatScreen(
                     // 1. Companion Android app — launch with context-aware extras
                     manifest?.companionApp != null -> {
                         val launchIntent = buildCompanionIntent(
-                            context        = context,
-                            companionApp   = manifest.companionApp,
-                            serviceId      = result.serviceId,
-                            triggerPhrase  = result.triggerPhrase,
+                            context      = context,
+                            companionApp = manifest.companionApp,
                         )
                         try { context.startActivity(launchIntent) }
                         catch (_: android.content.ActivityNotFoundException) { /* app not installed */ }
@@ -203,6 +223,8 @@ fun ChatScreen(
     // around the network call so the status bar can show "🌐 translating…".
     DisposableEffect(speechEngine) {
         speechEngine.onTranscript = { transcript ->
+            // Mark that draft now contains STT content — enables auto-send countdown.
+            sttDraftPending = true
             if (speechEngine.targetLanguage.startsWith("es")) {
                 // Spanish path — translate on IO, append English result on main.
                 isTranslating = true
@@ -257,28 +279,48 @@ fun ChatScreen(
         }
     }
 
-    // ── Keyboard visibility ───────────────────────────────────────────────
-    var keyboardVisible by remember { mutableStateOf(false) }
-    val imeVisible = WindowInsets.isImeVisible
-    // If the user dismisses the keyboard with the back button, sync state.
-    LaunchedEffect(imeVisible) {
-        if (!imeVisible) keyboardVisible = false
+    // ── Paragraph key (Caps Lock → newline) ──────────────────────────────
+    // MainActivity intercepts KEYCODE_CAPS_LOCK and emits to this flow.
+    // Here we append '\n' to the draft so the user can insert paragraph
+    // breaks during keyboard input without Shift+Enter.
+    LaunchedEffect(Unit) {
+        viewModel.paragraphKey.collect {
+            val sep = if (draftRef.value.isNotBlank()) "\n" else ""
+            onDraftChangeRef.value(draftRef.value + sep)
+            // A paragraph break is manual keyboard input — disarm STT timer.
+        }
     }
 
+    // Keyboard state is now managed entirely inside InputBar.
+    // ChatScreen only needs the scope for coroutines already declared above.
+
     // ── Auto-send countdown ───────────────────────────────────────────────
+    //
+    // Timer arms ONLY when:
+    //   • inputMode is VIBE (not PLANNING — "ship it" is the explicit send there)
+    //   • draft has content from STT (sttDraftPending=true) — keyboard-only
+    //     drafts are never auto-sent
+    //   • speechEngine.isSilent=true — the recognizer detected end-of-speech,
+    //     meaning the user has stopped talking (not mid-utterance)
+    //   • not already sending
+    //
+    // Duration: 8 seconds (ISOIEC 24751 / common voice-UX guideline for
+    // composed-thought dictation — long enough to pause between clauses without
+    // feeling rushed).
     val autoSendProgress = remember { Animatable(0f) }
-    LaunchedEffect(draft, inputMode, sending) {
-        if (inputMode == InputMode.VIBE && draft.isNotBlank() && !sending) {
+    LaunchedEffect(draft, inputMode, sending, speechEngine.isSilent, sttDraftPending) {
+        if (inputMode == InputMode.VIBE && draft.isNotBlank() && !sending
+                && sttDraftPending && speechEngine.isSilent) {
             autoSendProgress.snapTo(0f)
             autoSendProgress.animateTo(
-                targetValue    = 1f,
-                animationSpec  = tween(durationMillis = 5_000, easing = LinearEasing),
+                targetValue   = 1f,
+                animationSpec = tween(durationMillis = 8_000, easing = LinearEasing),
             )
-            // Double-guard — draft must still be non-blank at fire time.
-            // (Speech or keyboard may have cleared it mid-countdown.)
+            // Double-guard — draft must still be non-blank and STT-sourced at fire time.
             val text = draft.trim()
             if (text.isNotBlank()) {
                 draft = ""
+                sttDraftPending = false
                 viewModel.send(text)
             }
         } else {
@@ -293,7 +335,7 @@ fun ChatScreen(
             .background(ChatPalette.Black)
             .statusBarsPadding(),
     ) {
-        Header(client)
+        Header(client, musicStatus)
         BannerRow(client)
 
         LazyColumn(
@@ -309,19 +351,29 @@ fun ChatScreen(
                     onImageSave = onImageSave,
                 )
             }
+            // Pending bubble — always in the feed as a cursor landmark.
+            // Empty draft: just the blinking cursor ▍ right-aligned (terminal prompt feel).
+            // Non-empty draft: dim bordered bubble grows around the composing text.
+            // Border brightness pulses with mic RMS; newly spoken words flash bright then fade.
+            item(key = "pending") {
+                PendingBubble(text = draft, rmsLevel = speechEngine.rmsLevel)
+            }
         }
 
         InputBar(
-            draft           = draft,
-            onDraftChange   = onDraftChange,
-            sending         = sending,
-            inputMode       = inputMode,
-            progress        = autoSendProgress.value,
-            keyboardVisible = keyboardVisible,
-            onExpand        = { keyboardVisible = true },
-            onCollapse      = { keyboardVisible = false },
-            speechEngine    = speechEngine,
-            isTranslating   = isTranslating,
+            draft            = draft,
+            onDraftChange    = onDraftChange,
+            onKeyboardInput  = { sttDraftPending = false },
+            onSend           = { text ->
+                draft = ""
+                sttDraftPending = false
+                viewModel.send(text)
+            },
+            sending          = sending,
+            inputMode        = inputMode,
+            progress         = autoSendProgress.value,
+            speechEngine     = speechEngine,
+            isTranslating    = isTranslating,
         )
     }
 
@@ -340,7 +392,7 @@ fun ChatScreen(
 // ── Header ────────────────────────────────────────────────────────────────
 
 @Composable
-private fun Header(client: SkippyTelClient) {
+private fun Header(client: SkippyTelClient, musicStatus: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -349,13 +401,30 @@ private fun Header(client: SkippyTelClient) {
         verticalAlignment    = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(
-            text       = "Skippy",
-            color      = ChatPalette.White,
-            fontFamily = FontFamily.Default,
-            fontSize   = 18.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
+        // Title + optional music glyph
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text       = "Skippy",
+                color      = ChatPalette.White,
+                fontFamily = FontFamily.Default,
+                fontSize   = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            when (musicStatus) {
+                "playing" -> Text(
+                    text     = " ♪",
+                    color    = ChatPalette.DimGreenHi,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                )
+                "paused"  -> Text(
+                    text     = " ⏸",
+                    color    = ChatPalette.DimGreen,
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace,
+                )
+            }
+        }
         ReachabilityPill(client)
     }
 }
@@ -396,56 +465,23 @@ private fun BannerRow(client: SkippyTelClient) {
 // ── Companion app launch ──────────────────────────────────────────────────
 
 /**
- * Build a launch Intent for a companion Android app, enriching it with
- * context-aware extras based on [serviceId] and the raw [triggerPhrase].
+ * Build a launch Intent for a companion Android app.
  *
- * Generic path: use the standard LAUNCHER intent (no extras).
- * Music service: use [local.skippy.music.PLAY] action with mode / prompt
- *   extras derived from the trigger phrase so the player starts the right
- *   session type immediately (DJ, playlist, single).
+ * Uses the standard LAUNCHER intent. Services that used to have custom
+ * intent protocols (SkippyMusic) have been removed — music is now a
+ * read-only Bilby card in SkippyDroid's viewport feed, not a standalone app.
  */
 private fun buildCompanionIntent(
     context: android.content.Context,
     companionApp: String,
-    serviceId: String,
-    triggerPhrase: String,
 ): android.content.Intent {
     val flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
                 android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
-
-    return when (serviceId) {
-        "music" -> {
-            val phrase = triggerPhrase.lowercase()
-            // Infer mode from the trigger phrase
-            val mode = when {
-                "playlist" in phrase || "play some" in phrase ||
-                "play music" in phrase || "something like" in phrase -> "playlist"
-                "play" in phrase && ("by" in phrase || "song" in phrase) -> "single"
-                else -> "dj"
-            }
-            // For playlist, extract the description after "play [some/music/something like]"
-            val prompt = when {
-                mode == "playlist" -> Regex(
-                    "(?:play\\s+(?:some|music|something\\s+like|me\\s+some)\\s+)(.*)",
-                    RegexOption.IGNORE_CASE
-                ).find(phrase)?.groupValues?.getOrNull(1)?.trim() ?: ""
-                else -> ""
-            }
-            android.content.Intent("local.skippy.music.PLAY").apply {
-                setPackage(companionApp)
-                addFlags(flags)
-                putExtra("mode",           mode)
-                putExtra("prompt",         prompt)
-                putExtra("trigger_phrase", triggerPhrase)
-            }
+    return context.packageManager.getLaunchIntentForPackage(companionApp)
+        ?: android.content.Intent(android.content.Intent.ACTION_MAIN).apply {
+            setPackage(companionApp)
+            addFlags(flags)
         }
-        // Default: plain launcher intent
-        else -> context.packageManager.getLaunchIntentForPackage(companionApp)
-            ?: android.content.Intent(android.content.Intent.ACTION_MAIN).apply {
-                setPackage(companionApp)
-                addFlags(flags)
-            }
-    }
 }
 
 // ── Gallery save ─────────────────────────────────────────────────────────
@@ -478,66 +514,141 @@ private fun saveImageToGallery(context: android.content.Context, base64: String)
     }
 }
 
+// ── Pending bubble ────────────────────────────────────────────────────────
+
+/**
+ * Always-visible composable at the bottom of the feed.
+ *
+ * Empty draft → just a blinking-cursor glyph (▍) right-aligned. Acts as a
+ * visual landmark showing the app is focused and ready for keyboard input.
+ *
+ * Non-empty draft → a dim green bordered bubble showing the composing text
+ * with a trailing cursor, with two live animations:
+ *
+ *  1. **Border flash** — border color lerps from DimGreen → Green in real-time
+ *     with mic RMS amplitude. When you speak the border brightens; silence → dims.
+ *
+ *  2. **New-word fade** — each time new text lands (STT append), the whole text
+ *     briefly flashes to White then fades back to DimGreenHi over ~700ms. Makes
+ *     the bubble feel alive and confirms the recognizer heard you.
+ */
+@Composable
+private fun PendingBubble(text: String, rmsLevel: Float = 0f) {
+    // Track previous text length to detect new content arrivals.
+    var prevLength by remember { mutableStateOf(text.length) }
+    // Brightness of new-text flash: 1f = White, 0f = DimGreenHi.
+    val flashBrightness = remember { Animatable(0f) }
+
+    LaunchedEffect(text) {
+        if (text.length > prevLength) {
+            // New characters arrived — flash bright then fade.
+            flashBrightness.snapTo(1f)
+            flashBrightness.animateTo(
+                targetValue   = 0f,
+                animationSpec = tween(durationMillis = 700, easing = LinearEasing),
+            )
+        }
+        prevLength = text.length
+    }
+
+    // Border color: dim at silence, bright green at peak voice amplitude.
+    val borderColor = lerpColor(ChatPalette.DimGreen, ChatPalette.Green, rmsLevel.coerceIn(0f, 1f))
+    // Text color: flashes to White on new content, rests at DimGreenHi.
+    val textColor   = lerpColor(ChatPalette.DimGreenHi, ChatPalette.White, flashBrightness.value)
+
+    Row(
+        modifier            = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End,
+    ) {
+        if (text.isBlank()) {
+            // Cursor-only state — minimal indicator that focus is here.
+            // Border also flashes on the cursor glyph when voice is detected.
+            Text(
+                text       = "▍",
+                color      = lerpColor(ChatPalette.DimGreen, ChatPalette.Green, rmsLevel.coerceIn(0f, 1f)),
+                fontSize   = 14.sp,
+                fontFamily = FontFamily.Monospace,
+                modifier   = Modifier.padding(end = 4.dp, bottom = 4.dp),
+            )
+        } else {
+            Text(
+                text       = "$text▍",
+                color      = textColor,
+                fontSize   = 15.sp,
+                fontFamily = FontFamily.Default,
+                modifier   = Modifier
+                    .widthIn(max = 280.dp)
+                    .background(ChatPalette.Black)
+                    .border(1.dp, borderColor, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            )
+        }
+    }
+}
+
 // ── Input bar ─────────────────────────────────────────────────────────────
 
 /**
- * Two visual states:
+ * Minimal bottom strip — no visible text box.
  *
- * COLLAPSED (default, keyboard hidden):
- * ┌────────────────────────────────────────────────────┐
- * │ ● [mic]   "what I hear…"  (weight 1)   ▲ type     │  40dp
- * │ ████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░           │   2dp countdown
- * └────────────────────────────────────────────────────┘
+ * ┌──────────────────────────────────────────────────────┐
+ * │ ▼ close keyboard          ← only when IME is up      │  24dp
+ * │ ● PLANNING — "ship it" to send   ← only in PLANNING  │  20dp
+ * ├──────────────────────────────────────────────────────┤
+ * │ ● mic  "speak to Skippy…" (weight 1)           [⌨]  │  40dp
+ * │ ████░░░░░░░░░░░░░ countdown bar (STT only)           │   2dp
+ * │ [invisible 1dp BasicTextField — focus + key capture] │  ~0dp
+ * └──────────────────────────────────────────────────────┘
  *
- * EXPANDED (keyboard visible):
- * ┌────────────────────────────────────────────────────┐
- * │ ▼ collapse                     ● [mic]             │  24dp handle
- * │ ● PLANNING — "ship it" to send                     │  planning banner
- * │ [OutlinedTextField                               ] │
- * │ ████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │  2dp countdown
- * └────────────────────────────────────────────────────┘
+ * Composing text is shown instead as a [PendingBubble] at the bottom of the
+ * feed LazyColumn — always visible as a cursor landmark, grows into a full
+ * bubble when draft is non-empty. Sent on Enter (keyboard) or 8s silence (STT).
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun InputBar(
     draft:           String,
     onDraftChange:   (String) -> Unit,
+    /** Called on every keystroke from the physical/soft keyboard.
+     *  Signals that the draft now has user-typed content, disarming the
+     *  STT auto-send countdown for this draft. */
+    onKeyboardInput: () -> Unit = {},
+    /** Called when Enter/Send fires from the keyboard to submit the draft. */
+    onSend:          (String) -> Unit = {},
     sending:         Boolean,
     inputMode:       InputMode,
     progress:        Float,
-    keyboardVisible: Boolean,
-    onExpand:        () -> Unit,
-    onCollapse:      () -> Unit,
     speechEngine:    SpeechInputEngine,
     isTranslating:   Boolean = false,
 ) {
-    val focusRequester   = remember { FocusRequester() }
+    val focusRequester     = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
+    val imeVisible         = WindowInsets.isImeVisible
+    val scope              = rememberCoroutineScope()
 
-    // Only hide the keyboard on collapse — never auto-show it.
-    // Keyboard appears only when the user explicitly taps inside the text field.
-    LaunchedEffect(keyboardVisible) {
-        if (!keyboardVisible) keyboardController?.hide()
+    // Claim focus on first composition.
+    LaunchedEffect(Unit) {
+        try { focusRequester.requestFocus() } catch (_: Exception) {}
     }
 
-    // Mic status colors / label
-    val isMuted      = speechEngine.isMuted
-    val isListening  = speechEngine.isListening
-    val partial      = speechEngine.partialTranscript
-    val isSpanish    = speechEngine.targetLanguage.startsWith("es")
-    val micColor     = when {
-        isMuted      -> ChatPalette.DimGreen
-        isSpanish    -> ChatPalette.Amber   // amber = Spanish mode active
-        isListening  -> ChatPalette.Red
-        else         -> ChatPalette.DimGreenHi
+    // Mic status
+    val isMuted     = speechEngine.isMuted
+    val isListening = speechEngine.isListening
+    val partial     = speechEngine.partialTranscript
+    val isSpanish   = speechEngine.targetLanguage.startsWith("es")
+    val micColor    = when {
+        isMuted     -> ChatPalette.DimGreen
+        isSpanish   -> ChatPalette.Amber
+        isListening -> ChatPalette.Green     // active listening = bright green, not red
+        else        -> ChatPalette.DimGreenHi
     }
     val statusText = when {
-        isMuted                -> "muted"
-        isTranslating          -> "🌐 translating…"
-        partial.isNotBlank()   -> if (isSpanish) "🌐 $partial" else partial
+        isMuted                  -> "muted"
+        isTranslating            -> "🌐 translating…"
+        partial.isNotBlank()     -> if (isSpanish) "🌐 $partial" else partial
         isListening && isSpanish -> "escuchando…"
-        isListening            -> "listening…"
-        else                   -> "speak to Skippy…"
+        isListening              -> "listening…"
+        else                     -> "speak to Skippy…"
     }
 
     Column(
@@ -548,59 +659,16 @@ private fun InputBar(
             .navigationBarsPadding()
             .imePadding(),
     ) {
-        if (!keyboardVisible) {
-            // ── Collapsed bar ─────────────────────────────────────────────
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(40.dp)
-                    .clickable { onExpand() }
-                    .padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Mic dot
-                Box(
-                    modifier = Modifier
-                        .size(7.dp)
-                        .clip(CircleShape)
-                        .background(micColor),
-                )
-                Spacer(Modifier.width(8.dp))
-                // Partial transcript or status
-                Text(
-                    text       = statusText,
-                    color      = if (partial.isNotBlank()) ChatPalette.Amber else ChatPalette.DimGreenHi,
-                    fontFamily = FontFamily.Default,
-                    fontSize   = 14.sp,
-                    maxLines   = 1,
-                    modifier   = Modifier.weight(1f),
-                    overflow   = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.width(8.dp))
-                // Right-side label: language flag > planning > expand hint
-                val rightLabel = when {
-                    isSpanish && inputMode == InputMode.PLANNING -> "● planning  🌐 ES"
-                    isSpanish                                    -> "🌐 ES"
-                    inputMode == InputMode.PLANNING              -> "● planning"
-                    else                                         -> "▲ type"
-                }
-                Text(
-                    text       = rightLabel,
-                    color      = if (inputMode == InputMode.PLANNING || isSpanish) ChatPalette.Amber
-                                 else ChatPalette.DimGreenHi,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize   = 11.sp,
-                )
-            }
-        } else {
-            // ── Collapse handle ───────────────────────────────────────────
+
+        // ── "▼ close keyboard" — only when IME is up ─────────────────────
+        if (imeVisible) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(24.dp)
-                    .clickable { onCollapse() }
+                    .clickable { keyboardController?.hide() }
                     .padding(horizontal = 12.dp),
-                verticalAlignment    = Alignment.CenterVertically,
+                verticalAlignment     = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
@@ -609,81 +677,128 @@ private fun InputBar(
                     fontFamily = FontFamily.Monospace,
                     fontSize   = 11.sp,
                 )
-                // Mic status in expanded mode too
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(micColor))
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text       = if (isMuted) "muted" else "",
-                        color      = ChatPalette.DimGreen,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize   = 10.sp,
-                    )
-                }
+                if (isMuted) Text("muted", color = ChatPalette.DimGreen,
+                        fontFamily = FontFamily.Monospace, fontSize = 10.sp)
             }
+        }
 
-            // ── Planning mode banner ──────────────────────────────────────
-            if (inputMode == InputMode.PLANNING) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(ChatPalette.Amber))
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text       = "PLANNING — say \"ship it\" to send",
-                        color      = ChatPalette.Amber,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize   = 11.sp,
-                    )
-                }
-            }
-
-            // ── Text field ────────────────────────────────────────────────
-            OutlinedTextField(
-                value         = draft,
-                onValueChange = onDraftChange,
-                modifier      = Modifier
+        // ── Planning banner ───────────────────────────────────────────────
+        if (inputMode == InputMode.PLANNING) {
+            Row(
+                modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                    .focusRequester(focusRequester),
-                placeholder = {
-                    Text(
-                        text       = "type to Skippy…",
-                        color      = ChatPalette.DimGreenHi,
-                        fontFamily = FontFamily.Default,
-                    )
-                },
-                singleLine  = false,
-                enabled     = !sending,
-                textStyle   = TextStyle(
-                    color      = ChatPalette.White,
-                    fontFamily = FontFamily.Default,
-                    fontSize   = 16.sp,
-                ),
-                keyboardOptions = KeyboardOptions(
-                    capitalization     = KeyboardCapitalization.Sentences,
-                    autoCorrectEnabled = true,
-                    keyboardType       = KeyboardType.Text,
-                    imeAction          = ImeAction.None,
-                ),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor   = ChatPalette.Black,
-                    unfocusedContainerColor = ChatPalette.Black,
-                    disabledContainerColor  = ChatPalette.Black,
-                    focusedTextColor        = ChatPalette.White,
-                    unfocusedTextColor      = ChatPalette.White,
-                    focusedIndicatorColor   = ChatPalette.Green,
-                    unfocusedIndicatorColor = ChatPalette.DimGreen,
-                    cursorColor             = ChatPalette.Green,
-                ),
+                    .padding(horizontal = 12.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(ChatPalette.Amber))
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text       = "PLANNING — say \"ship it\" to send",
+                    color      = ChatPalette.Amber,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize   = 11.sp,
+                )
+            }
+        }
+
+        // ── Mic status + keyboard button row ─────────────────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(micColor))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text       = statusText,
+                color      = if (partial.isNotBlank()) ChatPalette.Amber else ChatPalette.DimGreenHi,
+                fontFamily = FontFamily.Default,
+                fontSize   = 13.sp,
+                maxLines   = 1,
+                overflow   = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier   = Modifier.weight(1f),
+            )
+            // Right-side indicators
+            val modeTag = when {
+                isSpanish && inputMode == InputMode.PLANNING -> "● plan  🌐"
+                isSpanish   -> "🌐 ES"
+                inputMode == InputMode.PLANNING -> "● planning"
+                else -> null
+            }
+            if (modeTag != null) {
+                Text(
+                    text       = modeTag,
+                    color      = ChatPalette.Amber,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize   = 10.sp,
+                )
+                Spacer(Modifier.width(6.dp))
+            }
+            // ⌨ button — the ONLY way to summon the soft keyboard
+            Text(
+                text     = "⌨",
+                color    = if (imeVisible) ChatPalette.Green else ChatPalette.DimGreenHi,
+                fontSize = 18.sp,
+                modifier = Modifier
+                    .clickable {
+                        if (imeVisible) keyboardController?.hide()
+                        else {
+                            scope.launch {
+                                try { focusRequester.requestFocus() } catch (_: Exception) {}
+                                keyboardController?.show()
+                            }
+                        }
+                    }
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
             )
         }
 
-        // ── Countdown bar — shown in both states when draft is live ───────
-        if (inputMode == InputMode.VIBE && draft.isNotBlank()) {
+        // ── Invisible keyboard capture ────────────────────────────────────
+        //
+        // No visible text box. Keyboard input is captured by this 1×1dp
+        // transparent BasicTextField. The composing text is shown instead as
+        // a PendingBubble inside the LazyColumn feed (always visible, with a
+        // blinking cursor even when draft is empty — serves as the keyboard-
+        // focus landmark).
+        //
+        // singleLine=true → Enter fires ImeAction.Send on both soft and
+        // hardware keyboards. Autocorrect + sentence capitalisation remain on
+        // so voice-typed and manually typed text is cleaned up automatically.
+        BasicTextField(
+            value           = draft,
+            onValueChange   = { onKeyboardInput(); onDraftChange(it) },
+            modifier        = Modifier
+                .size(1.dp)
+                .alpha(0f)
+                .focusRequester(focusRequester)
+                .onFocusChanged { state ->
+                    if (!state.isFocused && !imeVisible) {
+                        scope.launch {
+                            kotlinx.coroutines.delay(150)
+                            try { focusRequester.requestFocus() } catch (_: Exception) {}
+                        }
+                    }
+                },
+            enabled         = !sending,
+            singleLine      = true,
+            textStyle       = TextStyle(color = ChatPalette.White),
+            keyboardOptions = KeyboardOptions(
+                capitalization     = KeyboardCapitalization.Sentences,
+                autoCorrectEnabled = true,
+                keyboardType       = KeyboardType.Text,
+                imeAction          = ImeAction.Send,
+            ),
+            keyboardActions = KeyboardActions(
+                onSend = {
+                    val text = draft.trim()
+                    if (text.isNotBlank()) onSend(text)
+                }
+            ),
+        )
+
+        // ── Countdown bar — only shown when STT auto-send is armed ──────────
+        if (inputMode == InputMode.VIBE && draft.isNotBlank() && speechEngine.isSilent) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
